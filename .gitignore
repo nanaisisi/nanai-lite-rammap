@@ -1,0 +1,12 @@
+/target
+Cargo.lock
+
+# Development certificate
+devcert.pfx
+
+# Windows SDK packages and generated files
+.winapp
+nanai-lite-rammap.msix
+Assets/
+dist/
+pkg_layout/
