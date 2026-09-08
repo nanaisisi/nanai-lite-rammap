@@ -30,6 +30,7 @@ pub enum MemoryMetric {
     GpuShared,
 }
 
+#[derive(Clone)]
 pub enum RammapMessage {
     Refresh,
     SetTab(MemoryTab),
