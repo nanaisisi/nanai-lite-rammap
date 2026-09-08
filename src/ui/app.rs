@@ -1,114 +1,21 @@
+pub use super::app_core::RammapApp;
 use crate::category::{ProcessGroup, classify_process, group_by_category, group_by_name};
-use crate::gpu::{GpuAdapterInfo, collect_all_process_gpu_memory, collect_gpu_adapters};
-use crate::memory::{
-    ProcessMemoryEntry, SystemMemorySummary, collect_process_memory, collect_system_summary,
-    format_bytes,
-};
+use crate::memory::{ProcessMemoryEntry, format_bytes};
 use crate::treemap::{Rect, TreemapItem, layout_treemap};
 use crate::ui::theme::{color_for_category, wrap_canvas};
 use crate::ui::types::{AppInput, GroupMode, MemoryMetric, MemoryTab, RammapMessage, ViewMode};
 use windows_reactor::*;
 
-pub struct RammapApp {
-    tab: MemoryTab,
-    summary: SystemMemorySummary,
-    gpu_adapters: Vec<GpuAdapterInfo>,
-    processes: Vec<ProcessMemoryEntry>,
-    search_query: String,
-    view_mode: ViewMode,
-    group_mode: GroupMode,
-    metric: MemoryMetric,
-    selected_process: Option<ProcessMemoryEntry>,
-    selected_group_title: Option<String>,
-}
-
-fn fetch_all_processes(gpu_adapters: &[GpuAdapterInfo]) -> Vec<ProcessMemoryEntry> {
-    let mut processes = collect_process_memory();
-    let pids: Vec<u32> = processes.iter().map(|p| p.pid).collect();
-    let gpu_map = collect_all_process_gpu_memory(&pids, gpu_adapters);
-
-    for p in &mut processes {
-        if let Some(gpu_info) = gpu_map.get(&p.pid) {
-            p.gpu_dedicated_bytes = gpu_info.dedicated_bytes;
-            p.gpu_shared_bytes = gpu_info.shared_bytes;
-        }
-    }
-    processes
-}
-
 impl Component for RammapApp {
     type Input = AppInput;
     type Message = RammapMessage;
 
-    fn create(_input: &Self::Input, _context: &ComponentContext<Self>) -> Self {
-        let summary = collect_system_summary();
-        let gpu_adapters = collect_gpu_adapters();
-        let processes = fetch_all_processes(&gpu_adapters);
-        Self {
-            tab: MemoryTab::SystemRam,
-            summary,
-            gpu_adapters,
-            processes,
-            search_query: String::new(),
-            view_mode: ViewMode::Treemap,
-            group_mode: GroupMode::ByName,
-            metric: MemoryMetric::WorkingSet,
-            selected_process: None,
-            selected_group_title: None,
-        }
+    fn create(input: &Self::Input, _context: &ComponentContext<Self>) -> Self {
+        Self::new(input)
     }
 
     fn update(&mut self, message: Self::Message, _context: &ComponentContext<Self>) {
-        match message {
-            RammapMessage::Refresh => {
-                self.summary = collect_system_summary();
-                self.gpu_adapters = collect_gpu_adapters();
-                self.processes = fetch_all_processes(&self.gpu_adapters);
-                if let Some(ref sel) = self.selected_process {
-                    let pid = sel.pid;
-                    self.selected_process = self.processes.iter().find(|p| p.pid == pid).cloned();
-                }
-            }
-            RammapMessage::SetTab(tab) => {
-                self.tab = tab;
-                if tab == MemoryTab::GpuVram
-                    && self.metric != MemoryMetric::GpuDedicated
-                    && self.metric != MemoryMetric::GpuShared
-                {
-                    self.metric = MemoryMetric::GpuDedicated;
-                } else if tab == MemoryTab::SystemRam
-                    && (self.metric == MemoryMetric::GpuDedicated
-                        || self.metric == MemoryMetric::GpuShared)
-                {
-                    self.metric = MemoryMetric::WorkingSet;
-                }
-            }
-            RammapMessage::SearchChanged(query) => {
-                self.search_query = query;
-            }
-            RammapMessage::SetViewMode(mode) => {
-                self.view_mode = mode;
-            }
-            RammapMessage::SetGroupMode(mode) => {
-                self.group_mode = mode;
-            }
-            RammapMessage::ToggleMetric => {
-                self.metric = match self.tab {
-                    MemoryTab::SystemRam => match self.metric {
-                        MemoryMetric::WorkingSet => MemoryMetric::PrivateWs,
-                        _ => MemoryMetric::WorkingSet,
-                    },
-                    MemoryTab::GpuVram => match self.metric {
-                        MemoryMetric::GpuDedicated => MemoryMetric::GpuShared,
-                        _ => MemoryMetric::GpuDedicated,
-                    },
-                };
-            }
-            RammapMessage::SelectProcess(p, grp_title) => {
-                self.selected_process = p;
-                self.selected_group_title = grp_title;
-            }
-        }
+        self.update_message(message);
     }
 
     fn view(&self, _input: &Self::Input, context: &mut ViewContext<Self>) -> View {
