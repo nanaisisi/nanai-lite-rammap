@@ -1,15 +1,19 @@
-use crate::category::{ProcessGroup, classify_process, group_by_category, group_by_name};
-use crate::memory::{ProcessMemoryEntry, format_bytes};
-use crate::treemap::{Rect, TreemapItem, layout_treemap};
+use super::content_core::{
+    group_info, group_metric_bytes, group_metric_value, metric_bytes, metric_value, sort_groups,
+    sort_processes,
+};
+use crate::category::{classify_process, group_by_category, group_by_name};
+use crate::memory::{format_bytes, ProcessMemoryEntry};
+use crate::treemap::{layout_treemap, Rect, TreemapItem};
 use crate::ui::app_core::RammapApp;
 use crate::ui::theme::{color_for_category, wrap_canvas};
-use crate::ui::types::{GroupMode, MemoryMetric, MemoryTab, RammapMessage, ViewMode};
+use crate::ui::types::{GroupMode, RammapMessage, ViewMode};
 use windows_reactor::*;
 
 const CANVAS_WIDTH: f64 = 1000.0;
 const CANVAS_HEIGHT: f64 = 540.0;
 
-pub fn build<S>(app: &RammapApp, sender: S, filtered: Vec<ProcessMemoryEntry>) -> View
+pub(super) fn build<S>(app: &RammapApp, sender: S, filtered: Vec<ProcessMemoryEntry>) -> View
 where
     S: Fn(RammapMessage) + Clone + 'static,
 {
@@ -23,32 +27,6 @@ where
             GroupMode::ByName | GroupMode::ByCategory => grouped_list(app, sender, filtered),
         },
     }
-}
-
-fn metric_value(p: &ProcessMemoryEntry, metric: MemoryMetric) -> f64 {
-    match metric {
-        MemoryMetric::WorkingSet => p.working_set_bytes as f64,
-        MemoryMetric::PrivateWs => p.private_bytes as f64,
-        MemoryMetric::GpuDedicated => p.gpu_dedicated_bytes as f64,
-        MemoryMetric::GpuShared => p.gpu_shared_bytes as f64,
-    }
-}
-
-fn group_metric_value(g: &ProcessGroup<ProcessMemoryEntry>, metric: MemoryMetric) -> f64 {
-    match metric {
-        MemoryMetric::WorkingSet => g.total_working_set as f64,
-        MemoryMetric::PrivateWs => g.total_private as f64,
-        MemoryMetric::GpuDedicated => g.total_gpu_dedicated as f64,
-        MemoryMetric::GpuShared => g.total_gpu_shared as f64,
-    }
-}
-
-fn metric_bytes(p: &ProcessMemoryEntry, metric: MemoryMetric) -> u64 {
-    metric_value(p, metric) as u64
-}
-
-fn group_metric_bytes(g: &ProcessGroup<ProcessMemoryEntry>, metric: MemoryMetric) -> u64 {
-    group_metric_value(g, metric) as u64
 }
 
 fn bounds() -> Rect {
@@ -211,33 +189,6 @@ fn grouped_treemap<S: Fn(RammapMessage) + Clone + 'static>(
             .height(CANVAS_HEIGHT)
             .keyed_children(elements),
     )
-}
-
-fn group_info(tab: MemoryTab, group: &ProcessGroup<ProcessMemoryEntry>) -> String {
-    match tab {
-        MemoryTab::SystemRam => format!(
-            "{} | Total WS: {} | Total Private: {} | Count: {}",
-            group.title,
-            format_bytes(group.total_working_set),
-            format_bytes(group.total_private),
-            group.items.len()
-        ),
-        MemoryTab::GpuVram => format!(
-            "{} | Total Dedicated VRAM: {} | Total Shared: {} | Count: {}",
-            group.title,
-            format_bytes(group.total_gpu_dedicated),
-            format_bytes(group.total_gpu_shared),
-            group.items.len()
-        ),
-    }
-}
-
-fn sort_processes(processes: &mut [ProcessMemoryEntry], metric: MemoryMetric) {
-    processes.sort_by_key(|p| std::cmp::Reverse(metric_bytes(p, metric)));
-}
-
-fn sort_groups(groups: &mut [ProcessGroup<ProcessMemoryEntry>], metric: MemoryMetric) {
-    groups.sort_by_key(|g| std::cmp::Reverse(group_metric_bytes(g, metric)));
 }
 
 fn process_header() -> View {

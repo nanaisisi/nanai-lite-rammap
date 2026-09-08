@@ -1,8 +1,10 @@
-#[path = "app/content.rs"]
-mod content;
+#[path = "app/content_core.rs"]
+mod content_core;
+#[path = "app/content_integration.rs"]
+mod content_integration;
 
 use crate::category::classify_process;
-use crate::memory::{ProcessMemoryEntry, format_bytes};
+use crate::memory::{format_bytes, ProcessMemoryEntry};
 use crate::ui::types::{AppInput, GroupMode, MemoryMetric, MemoryTab, RammapMessage, ViewMode};
 use windows_reactor::*;
 
@@ -27,7 +29,7 @@ impl Component for RammapApp {
                 sender.send(message);
             }
         };
-        let content = content::build(self, send.clone(), self.filtered_processes());
+        let content = content_integration::build(self, send.clone(), self.filtered_processes());
         StackPanel::new()
             .spacing(10.0)
             .margin(Thickness::uniform(14.0))
