@@ -1,5 +1,4 @@
 pub mod app_core;
-#[path = "app.rs"]
 pub mod app_integration;
 
 pub mod app {

@@ -1,7 +1,7 @@
-pub use super::app_core::RammapApp;
 use crate::category::{ProcessGroup, classify_process, group_by_category, group_by_name};
 use crate::memory::{ProcessMemoryEntry, format_bytes};
 use crate::treemap::{Rect, TreemapItem, layout_treemap};
+pub use crate::ui::app_core::RammapApp;
 use crate::ui::theme::{color_for_category, wrap_canvas};
 use crate::ui::types::{AppInput, GroupMode, MemoryMetric, MemoryTab, RammapMessage, ViewMode};
 use windows_reactor::*;
