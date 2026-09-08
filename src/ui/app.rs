@@ -1,12 +1,10 @@
-use crate::category::{
-    classify_process, group_by_category, group_by_name, ProcessGroup,
-};
-use crate::gpu::{collect_all_process_gpu_memory, collect_gpu_adapters, GpuAdapterInfo};
+use crate::category::{ProcessGroup, classify_process, group_by_category, group_by_name};
+use crate::gpu::{GpuAdapterInfo, collect_all_process_gpu_memory, collect_gpu_adapters};
 use crate::memory::{
-    collect_process_memory, collect_system_summary, format_bytes, ProcessMemoryEntry,
-    SystemMemorySummary,
+    ProcessMemoryEntry, SystemMemorySummary, collect_process_memory, collect_system_summary,
+    format_bytes,
 };
-use crate::treemap::{layout_treemap, Rect, TreemapItem};
+use crate::treemap::{Rect, TreemapItem, layout_treemap};
 use crate::ui::theme::{color_for_category, wrap_canvas};
 use crate::ui::types::{AppInput, GroupMode, MemoryMetric, MemoryTab, RammapMessage, ViewMode};
 use windows_reactor::*;
@@ -140,7 +138,7 @@ impl Component for RammapApp {
         let s_search = sender.clone();
 
         let title = TextBlock::new()
-            .text("Nano AI Lite Rammap (WizTree + GPU Edition)")
+            .text("Nanai Lite Rammap (WizTree + GPU Edition)")
             .font_size(22.0)
             .font_weight(FontWeight::BOLD);
 
@@ -220,11 +218,13 @@ impl Component for RammapApp {
             .on_click(move || {
                 s_mode_tree.send(RammapMessage::SetViewMode(ViewMode::Treemap));
             })
-            .content(TextBlock::new().text(if self.view_mode == ViewMode::Treemap {
-                "📊 2D Tree (Active)"
-            } else {
-                "📊 2D Tree"
-            }));
+            .content(
+                TextBlock::new().text(if self.view_mode == ViewMode::Treemap {
+                    "📊 2D Tree (Active)"
+                } else {
+                    "📊 2D Tree"
+                }),
+            );
 
         let mode_list_btn = Button::new()
             .on_click(move || {
@@ -252,11 +252,13 @@ impl Component for RammapApp {
             .on_click(move || {
                 s_grp_name.send(RammapMessage::SetGroupMode(GroupMode::ByName));
             })
-            .content(TextBlock::new().text(if self.group_mode == GroupMode::ByName {
-                "🗂️ By Name (Active)"
-            } else {
-                "🗂️ By Name"
-            }));
+            .content(
+                TextBlock::new().text(if self.group_mode == GroupMode::ByName {
+                    "🗂️ By Name (Active)"
+                } else {
+                    "🗂️ By Name"
+                }),
+            );
 
         let grp_cat_btn = Button::new()
             .on_click(move || {
@@ -490,9 +492,7 @@ impl Component for RammapApp {
                         };
                         let val_str = format_bytes(total_val);
 
-                        let is_selected = self
-                            .selected_group_title
-                            .as_ref() == Some(&g.title);
+                        let is_selected = self.selected_group_title.as_ref() == Some(&g.title);
                         let bg_color = if is_selected {
                             Color::argb(255, 240, 160, 40)
                         } else {
@@ -748,9 +748,7 @@ impl Component for RammapApp {
                     for g in groups {
                         let key = g.key.clone();
                         let s_sel = sender.clone();
-                        let is_selected = self
-                            .selected_group_title
-                            .as_ref() == Some(&g.title);
+                        let is_selected = self.selected_group_title.as_ref() == Some(&g.title);
                         let first_item = g.items.first().cloned();
                         let full_info = match self.tab {
                             MemoryTab::SystemRam => format!(
