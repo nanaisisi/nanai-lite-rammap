@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod category;
 mod gpu;
 mod memory;
@@ -7,8 +9,6 @@ mod ui;
 use ui::app::RammapApp;
 use ui::types::AppInput;
 use windows_reactor::App;
-
-#[cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     App::run_component::<RammapApp>(AppInput)?;

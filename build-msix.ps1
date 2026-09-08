@@ -83,6 +83,17 @@ try {
         # Copy WinUI / Windows App SDK runtime DLLs and PRI files
         Copy-Item -Path (Join-Path $projectRoot 'target\release\*.dll') -Destination $distDir -Force -ErrorAction SilentlyContinue
         Copy-Item -Path (Join-Path $projectRoot 'target\release\*.pri') -Destination $distDir -Force -ErrorAction SilentlyContinue
+
+        # WinUI also loads localized resource DLLs and PRI files from subdirectories.
+        # Omitting these directories causes Microsoft.ui.xaml.dll to fail during startup.
+        $runtimeDirectories = Get-ChildItem -Path (Join-Path $projectRoot 'target\release') -Directory |
+            Where-Object {
+                $_.Name -eq 'Microsoft.UI.Xaml' -or
+                $_.Name -match '^[a-z]{2,3}(-[A-Za-z0-9]+)+$'
+            }
+        foreach ($directory in $runtimeDirectories) {
+            Copy-Item -Path $directory.FullName -Destination $distDir -Recurse -Force
+        }
         
         # Copy manifest
         if (Test-Path $manifestPath) {
