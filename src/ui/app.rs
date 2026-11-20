@@ -65,7 +65,7 @@ impl RammapApp {
             .text("Nanai Lite Rammap (WizTree + GPU Edition)")
             .font_size(22.0)
             .font_weight(FontWeight::BOLD);
-        let actions = StackPanel::new()
+        let target_actions = StackPanel::new()
             .orientation(Orientation::Horizontal)
             .spacing(8.0)
             .children((
@@ -73,6 +73,11 @@ impl RammapApp {
                 self.tab_button("🎮 GPU VRAM", MemoryTab::GpuVram, send.clone()),
                 self.tab_button("🧩 Split", MemoryTab::Split, send.clone()),
                 self.message_button("🔄 Refresh", RammapMessage::Refresh, send.clone()),
+            ));
+        let view_actions = StackPanel::new()
+            .orientation(Orientation::Horizontal)
+            .spacing(8.0)
+            .children((
                 self.mode_button("📊 2D Tree", ViewMode::Treemap, send.clone()),
                 self.mode_button("📋 List", ViewMode::List, send.clone()),
                 self.group_button("🗂️ By Name", GroupMode::ByName, send.clone()),
@@ -85,7 +90,8 @@ impl RammapApp {
             .children((
                 title,
                 TextBlock::new().text(self.subtitle()).font_size(12.0),
-                actions,
+                target_actions,
+                view_actions,
             ))
             .into()
     }
@@ -98,9 +104,11 @@ impl RammapApp {
                 .iter()
                 .enumerate()
                 .map(|(i, g)| {
+                    let kind = if g.is_discrete { "dGPU" } else { "iGPU" };
                     format!(
-                        "GPU {}: {} | Dedicated VRAM: {} / {} | Shared: {} / {}",
+                        "GPU {} [{}]: {} | Dedicated VRAM: {} / {} | Shared: {} / {}",
                         i,
+                        kind,
                         g.name,
                         format_bytes(g.dedicated_usage_bytes),
                         format_bytes(g.dedicated_vram_bytes),

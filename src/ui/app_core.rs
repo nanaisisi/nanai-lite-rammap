@@ -26,6 +26,7 @@ fn fetch_all_processes(gpu_adapters: &[GpuAdapterInfo]) -> Vec<ProcessMemoryEntr
         if let Some(gpu_info) = gpu_map.get(&p.pid) {
             p.gpu_dedicated_bytes = gpu_info.dedicated_bytes;
             p.gpu_shared_bytes = gpu_info.shared_bytes;
+            p.gpu_per_adapter = gpu_info.per_adapter.clone();
         }
     }
     processes

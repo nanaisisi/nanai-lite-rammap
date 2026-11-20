@@ -6,7 +6,9 @@ use windows::Win32::Graphics::Dxgi::{
     IDXGIAdapter3, IDXGIFactory1,
 };
 use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
-use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+use windows::Win32::System::Threading::{
+    OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION,
+};
 use windows::core::Interface;
 use windows::core::s;
 
@@ -14,6 +16,7 @@ use windows::core::s;
 pub struct GpuAdapterInfo {
     pub name: String,
     pub luid: LUID,
+    pub is_discrete: bool,
     pub dedicated_vram_bytes: u64,
     pub shared_ram_bytes: u64,
     pub dedicated_usage_bytes: u64,
@@ -26,6 +29,7 @@ pub struct GpuAdapterInfo {
 pub struct ProcessGpuMemory {
     pub dedicated_bytes: u64,
     pub shared_bytes: u64,
+    pub per_adapter: Vec<(u64, u64)>,
 }
 
 #[repr(C)]
@@ -44,7 +48,7 @@ pub struct D3DKMT_QUERYSTATISTICS {
     pub r#type: u32,
     pub adapter_luid: LUID,
     pub process_handle: HANDLE,
-    pub query_result: [u8; 320], // Union D3DKMT_QUERYSTATISTICS_RESULT (large enough for all variants)
+    pub query_result: [u64; 97], // Union D3DKMT_QUERYSTATISTICS_RESULT (776 bytes, 8-byte aligned)
     pub query_process_segment_group: u32, // SegmentGroup in union (0 = Local/Dedicated, 1 = NonLocal/Shared)
     pub reserved_union: [u32; 7],
 }
@@ -103,10 +107,12 @@ pub fn collect_gpu_adapters() -> Vec<GpuAdapterInfo> {
                 .unwrap_or(desc.Description.len());
             let name = String::from_utf16_lossy(&desc.Description[..name_len]);
 
+            let dedicated_vram_bytes = desc.DedicatedVideoMemory as u64;
             let mut info = GpuAdapterInfo {
                 name,
                 luid: desc.AdapterLuid,
-                dedicated_vram_bytes: desc.DedicatedVideoMemory as u64,
+                is_discrete: dedicated_vram_bytes >= 512 * 1024 * 1024,
+                dedicated_vram_bytes,
                 shared_ram_bytes: desc.SharedSystemMemory as u64,
                 ..Default::default()
             };
@@ -168,7 +174,8 @@ pub fn collect_all_process_gpu_memory(
         }
 
         unsafe {
-            let handle_res = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+            let handle_res = OpenProcess(PROCESS_QUERY_INFORMATION, false, pid)
+                .or_else(|_| OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid));
             let handle = match handle_res {
                 Ok(h) if !h.is_invalid() => h,
                 _ => continue,
@@ -176,15 +183,18 @@ pub fn collect_all_process_gpu_memory(
 
             let mut total_dedicated = 0u64;
             let mut total_shared = 0u64;
+            let mut per_adapter = Vec::with_capacity(adapters.len());
 
             for adapter in adapters {
+                let mut adapter_dedicated = 0u64;
+                let mut adapter_shared = 0u64;
                 // Query Local (Dedicated VRAM) - SegmentGroup 0
                 {
                     let mut query_data = D3DKMT_QUERYSTATISTICS {
                         r#type: D3DKMT_QUERYSTATISTICS_PROCESS_SEGMENT_GROUP,
                         adapter_luid: adapter.luid,
                         process_handle: handle,
-                        query_result: [0; 320],
+                        query_result: [0; 97],
                         query_process_segment_group: 0, // Local / Dedicated
                         reserved_union: [0; 7],
                     };
@@ -193,8 +203,7 @@ pub fn collect_all_process_gpu_memory(
                     if status >= 0 {
                         let info = *(query_data.query_result.as_ptr()
                             as *const D3DKMT_QUERYSTATISTICS_PROCESS_SEGMENT_GROUP_INFORMATION);
-                        let val = info.usage.max(info.requested);
-                        total_dedicated = total_dedicated.saturating_add(val);
+                        adapter_dedicated = info.usage;
                     }
                 }
 
@@ -204,7 +213,7 @@ pub fn collect_all_process_gpu_memory(
                         r#type: D3DKMT_QUERYSTATISTICS_PROCESS_SEGMENT_GROUP,
                         adapter_luid: adapter.luid,
                         process_handle: handle,
-                        query_result: [0; 320],
+                        query_result: [0; 97],
                         query_process_segment_group: 1, // NonLocal / Shared
                         reserved_union: [0; 7],
                     };
@@ -213,10 +222,18 @@ pub fn collect_all_process_gpu_memory(
                     if status >= 0 {
                         let info = *(query_data.query_result.as_ptr()
                             as *const D3DKMT_QUERYSTATISTICS_PROCESS_SEGMENT_GROUP_INFORMATION);
-                        let val = info.usage.max(info.requested);
-                        total_shared = total_shared.saturating_add(val);
+                        adapter_shared = info.usage;
                     }
                 }
+                // Integrated GPU (UMA) has no physical dedicated VRAM; treat all usage as shared memory
+                if !adapter.is_discrete {
+                    adapter_shared = adapter_shared.saturating_add(adapter_dedicated);
+                    adapter_dedicated = 0;
+                }
+
+                total_dedicated = total_dedicated.saturating_add(adapter_dedicated);
+                total_shared = total_shared.saturating_add(adapter_shared);
+                per_adapter.push((adapter_dedicated, adapter_shared));
             }
 
             let _ = CloseHandle(handle);
@@ -227,6 +244,7 @@ pub fn collect_all_process_gpu_memory(
                     ProcessGpuMemory {
                         dedicated_bytes: total_dedicated,
                         shared_bytes: total_shared,
+                        per_adapter,
                     },
                 );
             }
@@ -234,4 +252,17 @@ pub fn collect_all_process_gpu_memory(
     }
 
     map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_collect_gpu_memory() {
+        let adapters = collect_gpu_adapters();
+        let procs = crate::memory::collect_process_memory();
+        let pids: Vec<u32> = procs.iter().map(|p| p.pid).collect();
+        let _map = collect_all_process_gpu_memory(&pids, &adapters);
+    }
 }

@@ -34,6 +34,7 @@ pub struct ProcessMemoryEntry {
     pub private_bytes: u64,
     pub gpu_dedicated_bytes: u64,
     pub gpu_shared_bytes: u64,
+    pub gpu_per_adapter: Vec<(u64, u64)>,
 }
 
 pub fn format_bytes(bytes: u64) -> String {
@@ -142,6 +143,7 @@ pub fn collect_process_memory() -> Vec<ProcessMemoryEntry> {
                                     private_bytes: counters.PrivateUsage as u64,
                                     gpu_dedicated_bytes: 0,
                                     gpu_shared_bytes: 0,
+                                    gpu_per_adapter: Vec::new(),
                                 });
                             }
                             let _ = CloseHandle(handle);

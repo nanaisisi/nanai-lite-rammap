@@ -12,12 +12,12 @@ use windows_reactor::*;
 const CANVAS_WIDTH: f64 = 1000.0;
 const CANVAS_HEIGHT: f64 = 540.0;
 
-fn bounds(width: f64) -> Rect {
+fn bounds(width: f64, height: f64) -> Rect {
     Rect {
         x: 0.0,
         y: 0.0,
         width,
-        height: CANVAS_HEIGHT,
+        height,
     }
 }
 
@@ -26,7 +26,14 @@ pub(super) fn individual_treemap<S: Fn(RammapMessage) + Clone + 'static>(
     sender: S,
     processes: Vec<ProcessMemoryEntry>,
 ) -> View {
-    individual_treemap_with_metric(app, sender, processes, app.metric, CANVAS_WIDTH)
+    individual_treemap_with_metric(
+        app,
+        sender,
+        processes,
+        app.metric,
+        CANVAS_WIDTH,
+        CANVAS_HEIGHT,
+    )
 }
 
 pub(super) fn individual_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'static>(
@@ -35,6 +42,7 @@ pub(super) fn individual_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'sta
     processes: Vec<ProcessMemoryEntry>,
     metric: MemoryMetric,
     canvas_width: f64,
+    canvas_height: f64,
 ) -> View {
     let items = processes
         .into_iter()
@@ -45,7 +53,7 @@ pub(super) fn individual_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'sta
         .collect::<Vec<_>>();
     let mut elements = Vec::new();
 
-    for node in layout_treemap(&items, bounds(canvas_width)) {
+    for node in layout_treemap(&items, bounds(canvas_width, canvas_height)) {
         let p = node.data;
         let pid = p.pid;
         let label_value = format_bytes(metric_bytes(&p, metric));
@@ -100,7 +108,7 @@ pub(super) fn individual_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'sta
     wrap_canvas(
         Canvas::new()
             .width(canvas_width)
-            .height(CANVAS_HEIGHT)
+            .height(canvas_height)
             .children(elements)
             .into(),
     )
@@ -111,7 +119,14 @@ pub(super) fn grouped_treemap<S: Fn(RammapMessage) + Clone + 'static>(
     sender: S,
     processes: Vec<ProcessMemoryEntry>,
 ) -> View {
-    grouped_treemap_with_metric(app, sender, processes, app.metric, CANVAS_WIDTH)
+    grouped_treemap_with_metric(
+        app,
+        sender,
+        processes,
+        app.metric,
+        CANVAS_WIDTH,
+        CANVAS_HEIGHT,
+    )
 }
 
 pub(super) fn grouped_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'static>(
@@ -120,6 +135,7 @@ pub(super) fn grouped_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'static
     processes: Vec<ProcessMemoryEntry>,
     metric: MemoryMetric,
     canvas_width: f64,
+    canvas_height: f64,
 ) -> View {
     let groups = if app.group_mode == GroupMode::ByName {
         group_by_name(&processes)
@@ -135,7 +151,7 @@ pub(super) fn grouped_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'static
         .collect::<Vec<_>>();
     let mut elements = Vec::new();
 
-    for (index, node) in layout_treemap(&items, bounds(canvas_width)).into_iter().enumerate() {
+    for (index, node) in layout_treemap(&items, bounds(canvas_width, canvas_height)).into_iter().enumerate() {
         let group = node.data;
         let selected = app.selected_group_title.as_ref() == Some(&group.title);
         let background = if selected {
@@ -189,7 +205,7 @@ pub(super) fn grouped_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'static
     wrap_canvas(
         Canvas::new()
             .width(canvas_width)
-            .height(CANVAS_HEIGHT)
+            .height(canvas_height)
             .children(elements)
             .into(),
     )
