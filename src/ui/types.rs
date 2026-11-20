@@ -7,6 +7,7 @@ pub struct AppInput;
 pub enum MemoryTab {
     SystemRam,
     VirtualMemory,
+    TotalMemory,
     GpuVram,
     Split,
 }

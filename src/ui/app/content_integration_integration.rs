@@ -22,9 +22,10 @@ where
     S: Fn(RammapMessage) + Clone + 'static,
 {
     match app.tab {
-        MemoryTab::SystemRam | MemoryTab::VirtualMemory | MemoryTab::GpuVram => {
-            build_single(app, sender, filtered)
-        }
+        MemoryTab::SystemRam
+        | MemoryTab::VirtualMemory
+        | MemoryTab::TotalMemory
+        | MemoryTab::GpuVram => build_single(app, sender, filtered),
         MemoryTab::Split => build_split(app, sender, filtered),
     }
 }
@@ -39,7 +40,9 @@ where
 
     let total_capacity_bytes = if !app.show_free_space || !app.search_query.is_empty() {
         None
-    } else if app.tab == MemoryTab::VirtualMemory || app.use_requested {
+    } else if app.tab == MemoryTab::VirtualMemory {
+        Some(app.summary.total_page_file_bytes)
+    } else if app.tab == MemoryTab::TotalMemory || app.use_requested {
         Some(app.summary.commit_limit_bytes)
     } else {
         Some(app.summary.total_phys_bytes)

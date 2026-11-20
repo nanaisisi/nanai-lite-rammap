@@ -90,6 +90,8 @@ impl RammapApp {
             RammapMessage::SetTab(tab) => {
                 self.tab = tab;
                 if tab == MemoryTab::VirtualMemory {
+                    self.metric = MemoryMetric::PagefileUsage;
+                } else if tab == MemoryTab::TotalMemory {
                     self.metric = MemoryMetric::PrivateWs;
                 } else if tab == MemoryTab::SystemRam {
                     self.metric = if self.use_requested {

@@ -40,7 +40,7 @@ pub(super) fn group_metric_bytes(
 
 pub(super) fn group_info(tab: MemoryTab, group: &ProcessGroup<ProcessMemoryEntry>) -> String {
     match tab {
-        MemoryTab::SystemRam | MemoryTab::VirtualMemory => format!(
+        MemoryTab::SystemRam | MemoryTab::VirtualMemory | MemoryTab::TotalMemory => format!(
             "{} | Total WS: {} | Total Private: {} | Count: {}",
             group.title,
             format_bytes(group.total_working_set),
