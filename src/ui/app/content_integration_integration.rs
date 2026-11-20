@@ -22,10 +22,10 @@ where
     S: Fn(RammapMessage) + Clone + 'static,
 {
     match app.tab {
-        MemoryTab::SystemRam
-        | MemoryTab::VirtualMemory
-        | MemoryTab::TotalMemory
-        | MemoryTab::GpuVram => build_single(app, sender, filtered),
+        MemoryTab::SystemRam | MemoryTab::VirtualMemory | MemoryTab::GpuVram => {
+            build_single(app, sender, filtered)
+        }
+        MemoryTab::TotalMemory => build_total_memory(app, sender, filtered),
         MemoryTab::Split => build_split(app, sender, filtered),
     }
 }
@@ -62,6 +62,123 @@ where
             GroupMode::ByName | GroupMode::ByCategory => grouped_list(app, sender, filtered),
         },
     }
+}
+
+fn build_total_memory<S>(app: &RammapApp, sender: S, filtered: Vec<ProcessMemoryEntry>) -> View
+where
+    S: Fn(RammapMessage) + Clone + 'static,
+{
+    let phys_cap = if app.show_free_space && app.search_query.is_empty() {
+        Some(app.summary.total_phys_bytes)
+    } else {
+        None
+    };
+    let pf_cap = if app.show_free_space && app.search_query.is_empty() {
+        Some(app.summary.pagefile_total_bytes)
+    } else {
+        None
+    };
+
+    let (phys_h, pf_h) = if app.proportional_gpu {
+        let total_h = SPLIT_CANVAS_HEIGHT * 2.0;
+        let p = app.summary.total_phys_bytes as f64;
+        let v = app.summary.pagefile_total_bytes as f64;
+        let sum = (p + v).max(1.0);
+        let p_h = (total_h * (p / sum)).clamp(8.0, total_h - 8.0);
+        (p_h, (total_h - p_h).max(8.0))
+    } else {
+        (SPLIT_CANVAS_HEIGHT, SPLIT_CANVAS_HEIGHT)
+    };
+
+    let phys_metric = if app.use_requested {
+        MemoryMetric::PrivateWs
+    } else {
+        MemoryMetric::WorkingSet
+    };
+
+    let phys_view = match app.view_mode {
+        ViewMode::Treemap => match app.group_mode {
+            GroupMode::Individual => individual_treemap_with_metric(
+                app,
+                sender.clone(),
+                filtered.clone(),
+                phys_metric,
+                SPLIT_CANVAS_WIDTH,
+                phys_h,
+                phys_cap,
+            ),
+            GroupMode::ByName | GroupMode::ByCategory => grouped_treemap_with_metric(
+                app,
+                sender.clone(),
+                filtered.clone(),
+                phys_metric,
+                SPLIT_CANVAS_WIDTH,
+                phys_h,
+                phys_cap,
+            ),
+        },
+        ViewMode::List => match app.group_mode {
+            GroupMode::Individual => {
+                individual_list_with_metric(app, sender.clone(), filtered.clone(), phys_metric)
+            }
+            GroupMode::ByName | GroupMode::ByCategory => {
+                grouped_list_with_metric(app, sender.clone(), filtered.clone(), phys_metric)
+            }
+        },
+    };
+
+    let pf_view = match app.view_mode {
+        ViewMode::Treemap => match app.group_mode {
+            GroupMode::Individual => individual_treemap_with_metric(
+                app,
+                sender,
+                filtered,
+                MemoryMetric::PagefileUsage,
+                SPLIT_CANVAS_WIDTH,
+                pf_h,
+                pf_cap,
+            ),
+            GroupMode::ByName | GroupMode::ByCategory => grouped_treemap_with_metric(
+                app,
+                sender,
+                filtered,
+                MemoryMetric::PagefileUsage,
+                SPLIT_CANVAS_WIDTH,
+                pf_h,
+                pf_cap,
+            ),
+        },
+        ViewMode::List => match app.group_mode {
+            GroupMode::Individual => {
+                individual_list_with_metric(app, sender, filtered, MemoryMetric::PagefileUsage)
+            }
+            GroupMode::ByName | GroupMode::ByCategory => {
+                grouped_list_with_metric(app, sender, filtered, MemoryMetric::PagefileUsage)
+            }
+        },
+    };
+
+    StackPanel::new()
+        .spacing(6.0)
+        .children((
+            TextBlock::new()
+                .text(format!(
+                    "💻 Physical RAM (Total: {} | Used: {})",
+                    crate::memory::format_bytes(app.summary.total_phys_bytes),
+                    crate::memory::format_bytes(app.summary.used_phys_bytes)
+                ))
+                .font_size(12.0),
+            phys_view,
+            TextBlock::new()
+                .text(format!(
+                    "💾 Virtual Memory / PageFile (Total: {} | Used: {})",
+                    crate::memory::format_bytes(app.summary.pagefile_total_bytes),
+                    crate::memory::format_bytes(app.summary.pagefile_in_use_bytes)
+                ))
+                .font_size(12.0),
+            pf_view,
+        ))
+        .into()
 }
 
 fn build_gpu_single<S>(app: &RammapApp, sender: S, filtered: Vec<ProcessMemoryEntry>) -> View
