@@ -220,13 +220,14 @@ impl RammapApp {
                 .join(" | ")
         };
         let ram_summary = format!(
-            "Processes: {} | Physical RAM: {} (Used: {} / {}%) | Commit: {} / {}",
+            "Processes: {} | Physical RAM: {} (Used: {} / {}%) | Cache: {} | Paged: {} | NonPaged: {}",
             self.summary.process_count,
             format_bytes(self.summary.total_phys_bytes),
             format_bytes(self.summary.used_phys_bytes),
             self.summary.memory_load_pct,
-            format_bytes(self.summary.commit_total_bytes),
-            format_bytes(self.summary.commit_limit_bytes)
+            format_bytes(self.summary.system_cache_bytes),
+            format_bytes(self.summary.paged_pool_bytes),
+            format_bytes(self.summary.nonpaged_pool_bytes)
         );
         let vmem_summary = format!(
             "Processes: {} | Commit: {} / {} | PageFile: {} / {}",
@@ -306,12 +307,14 @@ impl RammapApp {
             format!("🎯 Selected Group: {}", title)
         } else if let Some(ref p) = self.selected_process {
             format!(
-                "🎯 [{}] {} ({}) | WS: {} | Private: {} | GPU VRAM: {} | GPU Shared: {}",
+                "🎯 [{}] {} ({}) | WS: {} (Peak: {}) | Private: {} | Pagefile: {} | GPU VRAM: {} | Shared: {}",
                 p.pid,
                 p.name,
                 classify_process(&p.name).label(),
                 format_bytes(p.working_set_bytes),
+                format_bytes(p.peak_working_set_bytes),
                 format_bytes(p.private_bytes),
+                format_bytes(p.pagefile_bytes),
                 format_bytes(p.gpu_dedicated_bytes),
                 format_bytes(p.gpu_shared_bytes)
             )

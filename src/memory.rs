@@ -23,6 +23,7 @@ pub struct SystemMemorySummary {
     pub commit_limit_bytes: u64,
     pub paged_pool_bytes: u64,
     pub nonpaged_pool_bytes: u64,
+    pub system_cache_bytes: u64,
     pub process_count: u32,
 }
 
@@ -31,7 +32,9 @@ pub struct ProcessMemoryEntry {
     pub pid: u32,
     pub name: String,
     pub working_set_bytes: u64,
+    pub peak_working_set_bytes: u64,
     pub private_bytes: u64,
+    pub pagefile_bytes: u64,
     pub gpu_dedicated_bytes: u64,
     pub gpu_dedicated_requested_bytes: u64,
     pub gpu_shared_bytes: u64,
@@ -85,6 +88,7 @@ pub fn collect_system_summary() -> SystemMemorySummary {
             summary.commit_limit_bytes = (perf_info.CommitLimit as u64) * page_size;
             summary.paged_pool_bytes = (perf_info.KernelPaged as u64) * page_size;
             summary.nonpaged_pool_bytes = (perf_info.KernelNonpaged as u64) * page_size;
+            summary.system_cache_bytes = (perf_info.SystemCache as u64) * page_size;
             summary.process_count = perf_info.ProcessCount;
         }
     }
@@ -142,7 +146,9 @@ pub fn collect_process_memory() -> Vec<ProcessMemoryEntry> {
                                     pid,
                                     name,
                                     working_set_bytes: counters.WorkingSetSize as u64,
+                                    peak_working_set_bytes: counters.PeakWorkingSetSize as u64,
                                     private_bytes: counters.PrivateUsage as u64,
+                                    pagefile_bytes: counters.PagefileUsage as u64,
                                     gpu_dedicated_bytes: 0,
                                     gpu_dedicated_requested_bytes: 0,
                                     gpu_shared_bytes: 0,

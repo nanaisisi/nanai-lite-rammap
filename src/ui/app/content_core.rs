@@ -6,6 +6,8 @@ pub(super) fn metric_value(p: &ProcessMemoryEntry, metric: MemoryMetric) -> f64 
     match metric {
         MemoryMetric::WorkingSet => p.working_set_bytes as f64,
         MemoryMetric::PrivateWs => p.private_bytes as f64,
+        MemoryMetric::PeakWorkingSet => p.peak_working_set_bytes as f64,
+        MemoryMetric::PagefileUsage => p.pagefile_bytes as f64,
         MemoryMetric::GpuDedicated => p.gpu_dedicated_bytes as f64,
         MemoryMetric::GpuShared => p.gpu_shared_bytes as f64,
     }
@@ -18,6 +20,8 @@ pub(super) fn group_metric_value(
     match metric {
         MemoryMetric::WorkingSet => group.total_working_set as f64,
         MemoryMetric::PrivateWs => group.total_private as f64,
+        MemoryMetric::PeakWorkingSet => group.items.iter().map(|p| p.peak_working_set_bytes).sum::<u64>() as f64,
+        MemoryMetric::PagefileUsage => group.items.iter().map(|p| p.pagefile_bytes).sum::<u64>() as f64,
         MemoryMetric::GpuDedicated => group.total_gpu_dedicated as f64,
         MemoryMetric::GpuShared => group.total_gpu_shared as f64,
     }
