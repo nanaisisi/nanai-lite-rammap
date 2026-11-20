@@ -9,7 +9,9 @@ mod content_integration_integration;
 
 use crate::category::classify_process;
 use crate::memory::{ProcessMemoryEntry, format_bytes};
-use crate::ui::types::{AppInput, GroupMode, MemoryMetric, MemoryTab, RammapMessage, ViewMode};
+use crate::ui::types::{
+    AppInput, GroupMode, MemoryTab, RammapMessage, SplitLayoutMode, ViewMode,
+};
 use windows_reactor::*;
 
 pub use crate::ui::app_core::RammapApp;
@@ -74,17 +76,25 @@ impl RammapApp {
                 self.tab_button("🧩 Split", MemoryTab::Split, send.clone()),
                 self.message_button("🔄 Refresh", RammapMessage::Refresh, send.clone()),
             ));
+        let mut view_buttons = vec![
+            self.mode_button("📊 2D Tree", ViewMode::Treemap, send.clone()),
+            self.mode_button("📋 List", ViewMode::List, send.clone()),
+            self.group_button("🗂️ By Name", GroupMode::ByName, send.clone()),
+            self.group_button("🏷️ By Category", GroupMode::ByCategory, send.clone()),
+            self.group_button("🔹 Individual", GroupMode::Individual, send.clone()),
+            self.message_button(self.metric_label(), RammapMessage::ToggleMetric, send.clone()),
+        ];
+        if self.tab == MemoryTab::Split {
+            view_buttons.push(self.message_button(
+                self.split_layout_label(),
+                RammapMessage::ToggleSplitLayoutMode,
+                send,
+            ));
+        }
         let view_actions = StackPanel::new()
             .orientation(Orientation::Horizontal)
             .spacing(8.0)
-            .children((
-                self.mode_button("📊 2D Tree", ViewMode::Treemap, send.clone()),
-                self.mode_button("📋 List", ViewMode::List, send.clone()),
-                self.group_button("🗂️ By Name", GroupMode::ByName, send.clone()),
-                self.group_button("🏷️ By Category", GroupMode::ByCategory, send.clone()),
-                self.group_button("🔹 Individual", GroupMode::Individual, send.clone()),
-                self.message_button(self.metric_label(), RammapMessage::ToggleMetric, send),
-            ));
+            .children(view_buttons);
         StackPanel::new()
             .spacing(4.0)
             .children((
@@ -132,6 +142,13 @@ impl RammapApp {
         match self.tab {
             MemoryTab::SystemRam => ram_summary,
             MemoryTab::GpuVram | MemoryTab::Split => gpu_summary,
+        }
+    }
+
+    fn split_layout_label(&self) -> &'static str {
+        match self.split_layout_mode {
+            SplitLayoutMode::Fit => "📐 Split: Fit",
+            SplitLayoutMode::Scroll => "↔️ Split: Scroll",
         }
     }
 

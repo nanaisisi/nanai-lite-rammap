@@ -17,6 +17,12 @@ pub enum ViewMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SplitLayoutMode {
+    Fit,
+    Scroll,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroupMode {
     Individual,
     ByName,
@@ -38,6 +44,7 @@ pub enum RammapMessage {
     SearchChanged(String),
     SetViewMode(ViewMode),
     SetGroupMode(GroupMode),
+    ToggleSplitLayoutMode,
     ToggleMetric,
     SelectProcess(Option<ProcessMemoryEntry>, Option<String>),
 }

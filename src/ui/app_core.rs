@@ -2,7 +2,9 @@ use crate::gpu::{GpuAdapterInfo, collect_all_process_gpu_memory, collect_gpu_ada
 use crate::memory::{
     ProcessMemoryEntry, SystemMemorySummary, collect_process_memory, collect_system_summary,
 };
-use crate::ui::types::{AppInput, GroupMode, MemoryMetric, MemoryTab, RammapMessage, ViewMode};
+use crate::ui::types::{
+    AppInput, GroupMode, MemoryMetric, MemoryTab, RammapMessage, SplitLayoutMode, ViewMode,
+};
 
 pub struct RammapApp {
     pub(super) tab: MemoryTab,
@@ -12,6 +14,7 @@ pub struct RammapApp {
     pub(super) search_query: String,
     pub(super) view_mode: ViewMode,
     pub(super) group_mode: GroupMode,
+    pub(super) split_layout_mode: SplitLayoutMode,
     pub(super) metric: MemoryMetric,
     pub(super) use_requested: bool,
     pub(super) selected_process: Option<ProcessMemoryEntry>,
@@ -48,6 +51,7 @@ impl RammapApp {
             search_query: String::new(),
             view_mode: ViewMode::Treemap,
             group_mode: GroupMode::ByName,
+            split_layout_mode: SplitLayoutMode::Fit,
             metric: MemoryMetric::WorkingSet,
             use_requested: false,
             selected_process: None,
@@ -83,6 +87,12 @@ impl RammapApp {
             RammapMessage::SearchChanged(query) => self.search_query = query,
             RammapMessage::SetViewMode(mode) => self.view_mode = mode,
             RammapMessage::SetGroupMode(mode) => self.group_mode = mode,
+            RammapMessage::ToggleSplitLayoutMode => {
+                self.split_layout_mode = match self.split_layout_mode {
+                    SplitLayoutMode::Fit => SplitLayoutMode::Scroll,
+                    SplitLayoutMode::Scroll => SplitLayoutMode::Fit,
+                };
+            }
             RammapMessage::ToggleMetric => {
                 self.use_requested = !self.use_requested;
                 if self.tab == MemoryTab::SystemRam {

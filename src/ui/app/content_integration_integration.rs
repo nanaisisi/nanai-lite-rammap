@@ -7,8 +7,12 @@ use super::content_integration_core::{
 };
 use crate::memory::ProcessMemoryEntry;
 use crate::ui::app_core::RammapApp;
-use crate::ui::types::{GroupMode, MemoryMetric, MemoryTab, RammapMessage, ViewMode};
-use windows_reactor::{FontWeight, Orientation, StackPanel, TextBlock, View};
+use crate::ui::types::{
+    GroupMode, MemoryMetric, MemoryTab, RammapMessage, SplitLayoutMode, ViewMode,
+};
+use windows_reactor::{
+    FontWeight, Orientation, ScrollBarVisibility, ScrollViewer, StackPanel, TextBlock, View,
+};
 
 const SPLIT_CANVAS_WIDTH: f64 = 1000.0;
 const SPLIT_CANVAS_HEIGHT: f64 = 260.0;
@@ -56,8 +60,19 @@ where
     S: Fn(RammapMessage) + Clone + 'static,
 {
     let adapter_count = app.gpu_adapters.len().max(1);
-    let panel_width =
-        ((SPLIT_CANVAS_WIDTH - 12.0 * (adapter_count - 1) as f64) / adapter_count as f64).max(300.0);
+    let panel_width = match app.split_layout_mode {
+        SplitLayoutMode::Fit => {
+            ((SPLIT_CANVAS_WIDTH - 12.0 * (adapter_count - 1) as f64) / adapter_count as f64)
+                .max(160.0)
+        }
+        SplitLayoutMode::Scroll => {
+            if adapter_count == 1 {
+                SPLIT_CANVAS_WIDTH
+            } else {
+                494.0
+            }
+        }
+    };
 
     let mut gpu_columns: Vec<View> = Vec::with_capacity(adapter_count);
 
@@ -172,9 +187,18 @@ where
             .into();
     }
 
-    StackPanel::new()
+    let row = StackPanel::new()
         .orientation(Orientation::Horizontal)
         .spacing(12.0)
-        .children(gpu_columns)
-        .into()
+        .children(gpu_columns);
+
+    match app.split_layout_mode {
+        SplitLayoutMode::Fit => row.into(),
+        SplitLayoutMode::Scroll => ScrollViewer::new()
+            .horizontal_scroll_bar_visibility(ScrollBarVisibility::Auto)
+            .vertical_scroll_bar_visibility(ScrollBarVisibility::Disabled)
+            .width(SPLIT_CANVAS_WIDTH)
+            .content(row)
+            .into(),
+    }
 }
