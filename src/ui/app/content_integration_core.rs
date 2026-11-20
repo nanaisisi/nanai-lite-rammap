@@ -72,10 +72,7 @@ fn push_system_and_free<T>(
         }
     } else if app.tab == MemoryTab::VirtualMemory && app.search_query.is_empty() {
         items.clear();
-        let pf_used = app
-            .summary
-            .commit_total_bytes
-            .saturating_sub(app.summary.used_phys_bytes);
+        let pf_used = app.summary.pagefile_in_use_bytes;
         if pf_used > 0 {
             extra_used = pf_used;
             items.push(TreemapItem {

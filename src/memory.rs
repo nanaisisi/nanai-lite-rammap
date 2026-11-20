@@ -19,6 +19,8 @@ pub struct SystemMemorySummary {
     pub memory_load_pct: u32,
     pub total_page_file_bytes: u64,
     pub avail_page_file_bytes: u64,
+    pub pagefile_total_bytes: u64,
+    pub pagefile_in_use_bytes: u64,
     pub commit_total_bytes: u64,
     pub commit_limit_bytes: u64,
     pub paged_pool_bytes: u64,
@@ -91,11 +93,55 @@ pub fn collect_system_summary() -> SystemMemorySummary {
             summary.nonpaged_pool_bytes = (perf_info.KernelNonpaged as u64) * page_size;
             summary.system_cache_bytes = (perf_info.SystemCache as u64) * page_size;
             summary.process_count = perf_info.ProcessCount;
+
+            let (pf_total, pf_in_use) = collect_pagefile_usage(page_size);
+            summary.pagefile_total_bytes = pf_total;
+            summary.pagefile_in_use_bytes = pf_in_use;
         }
     }
 
     summary.compressed_bytes = collect_compressed_memory_bytes();
     summary
+}
+
+fn collect_pagefile_usage(page_size: u64) -> (u64, u64) {
+    use std::ffi::c_void;
+    use windows::Win32::System::ProcessStatus::{ENUM_PAGE_FILE_INFORMATION, EnumPageFilesW};
+    use windows::core::{BOOL, PCWSTR};
+
+    struct PageFileAcc {
+        page_size: u64,
+        total: u64,
+        in_use: u64,
+    }
+
+    unsafe extern "system" fn callback(
+        ctx: *mut c_void,
+        info: *mut ENUM_PAGE_FILE_INFORMATION,
+        _name: PCWSTR,
+    ) -> BOOL {
+        unsafe {
+            let acc = &mut *(ctx as *mut PageFileAcc);
+            let info = &*info;
+            acc.total = acc
+                .total
+                .saturating_add((info.TotalSize as u64) * acc.page_size);
+            acc.in_use = acc
+                .in_use
+                .saturating_add((info.TotalInUse as u64) * acc.page_size);
+        }
+        BOOL(1)
+    }
+
+    let mut acc = PageFileAcc {
+        page_size,
+        total: 0,
+        in_use: 0,
+    };
+    unsafe {
+        let _ = EnumPageFilesW(Some(callback), &mut acc as *mut _ as *mut c_void);
+    }
+    (acc.total, acc.in_use)
 }
 
 fn collect_compressed_memory_bytes() -> u64 {
