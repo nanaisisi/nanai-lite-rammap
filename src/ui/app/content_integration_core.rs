@@ -9,8 +9,8 @@ use crate::ui::theme::{color_for_category, wrap_canvas};
 use crate::ui::types::{GroupMode, MemoryMetric, RammapMessage};
 use windows_reactor::*;
 
-const CANVAS_WIDTH: f64 = 1000.0;
-const CANVAS_HEIGHT: f64 = 540.0;
+const CANVAS_WIDTH: f64 = 960.0;
+const CANVAS_HEIGHT: f64 = 500.0;
 
 fn bounds(width: f64, height: f64) -> Rect {
     Rect {
@@ -151,7 +151,10 @@ pub(super) fn grouped_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'static
         .collect::<Vec<_>>();
     let mut elements = Vec::new();
 
-    for (index, node) in layout_treemap(&items, bounds(canvas_width, canvas_height)).into_iter().enumerate() {
+    for (index, node) in layout_treemap(&items, bounds(canvas_width, canvas_height))
+        .into_iter()
+        .enumerate()
+    {
         let group = node.data;
         let selected = app.selected_group_title.as_ref() == Some(&group.title);
         let background = if selected {

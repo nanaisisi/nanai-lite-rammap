@@ -14,8 +14,8 @@ use windows_reactor::{
     FontWeight, Orientation, ScrollBarVisibility, ScrollViewer, StackPanel, TextBlock, View,
 };
 
-const SPLIT_CANVAS_WIDTH: f64 = 1000.0;
-const SPLIT_CANVAS_HEIGHT: f64 = 260.0;
+const SPLIT_CANVAS_WIDTH: f64 = 960.0;
+const SPLIT_CANVAS_HEIGHT: f64 = 220.0;
 
 pub(super) fn build<S>(app: &RammapApp, sender: S, filtered: Vec<ProcessMemoryEntry>) -> View
 where

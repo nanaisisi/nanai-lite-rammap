@@ -37,10 +37,15 @@ impl Component for RammapApp {
         };
         let content =
             content_integration_integration::build(self, send.clone(), self.filtered_processes());
-        StackPanel::new()
-            .spacing(10.0)
-            .margin(Thickness::uniform(14.0))
-            .children((self.header(send.clone()), self.search_panel(send), content))
+        ScrollViewer::new()
+            .vertical_scroll_bar_visibility(ScrollBarVisibility::Auto)
+            .horizontal_scroll_bar_visibility(ScrollBarVisibility::Auto)
+            .content(
+                StackPanel::new()
+                    .spacing(10.0)
+                    .margin(Thickness::uniform(14.0))
+                    .children((self.header(send.clone()), self.search_panel(send), content)),
+            )
             .into()
     }
 }
