@@ -42,19 +42,9 @@ fn push_system_and_free<T>(
     if app.tab == MemoryTab::SystemRam && app.search_query.is_empty() {
         let sys_blocks = [
             (
-                "Paged Pool",
-                app.summary.paged_pool_bytes,
-                Color::argb(255, 110, 80, 150),
-            ),
-            (
                 "Non-Paged Pool",
                 app.summary.nonpaged_pool_bytes,
                 Color::argb(255, 150, 75, 110),
-            ),
-            (
-                "Compressed",
-                app.summary.compressed_bytes,
-                Color::argb(255, 70, 125, 140),
             ),
             (
                 "System Cache",
@@ -79,6 +69,19 @@ fn push_system_and_free<T>(
                     },
                 });
             }
+        }
+    } else if app.tab == MemoryTab::TotalMemory && app.search_query.is_empty() {
+        let bytes = app.summary.paged_pool_bytes;
+        if bytes > 0 {
+            extra_used = extra_used.saturating_add(bytes);
+            items.push(TreemapItem {
+                value: bytes as f64,
+                data: TreemapEntry::System {
+                    label: "Paged Pool",
+                    bytes,
+                    color: Color::argb(255, 110, 80, 150),
+                },
+            });
         }
     } else if app.tab == MemoryTab::VirtualMemory && app.search_query.is_empty() {
         items.clear();
