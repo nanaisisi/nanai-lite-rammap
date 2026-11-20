@@ -91,6 +91,12 @@ impl RammapApp {
                     send.clone(),
                 ),
                 self.selectable_button(
+                    "💾 Virtual Mem",
+                    self.tab == MemoryTab::VirtualMemory,
+                    RammapMessage::SetTab(MemoryTab::VirtualMemory),
+                    send.clone(),
+                ),
+                self.selectable_button(
                     "🎮 GPU VRAM",
                     self.tab == MemoryTab::GpuVram,
                     RammapMessage::SetTab(MemoryTab::GpuVram),
@@ -222,9 +228,22 @@ impl RammapApp {
             format_bytes(self.summary.commit_total_bytes),
             format_bytes(self.summary.commit_limit_bytes)
         );
+        let vmem_summary = format!(
+            "Processes: {} | Commit: {} / {} | PageFile: {} / {}",
+            self.summary.process_count,
+            format_bytes(self.summary.commit_total_bytes),
+            format_bytes(self.summary.commit_limit_bytes),
+            format_bytes(
+                self.summary
+                    .total_page_file_bytes
+                    .saturating_sub(self.summary.avail_page_file_bytes)
+            ),
+            format_bytes(self.summary.total_page_file_bytes)
+        );
         let gpu_summary = format!("Processes: {} | {}", self.summary.process_count, gpu);
         match self.tab {
             MemoryTab::SystemRam => ram_summary,
+            MemoryTab::VirtualMemory => vmem_summary,
             MemoryTab::GpuVram | MemoryTab::Split => gpu_summary,
         }
     }

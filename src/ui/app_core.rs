@@ -78,16 +78,14 @@ impl RammapApp {
             }
             RammapMessage::SetTab(tab) => {
                 self.tab = tab;
-                if tab == MemoryTab::GpuVram
-                    && self.metric != MemoryMetric::GpuDedicated
-                    && self.metric != MemoryMetric::GpuShared
-                {
-                    self.metric = MemoryMetric::GpuDedicated;
-                } else if tab == MemoryTab::SystemRam
-                    && (self.metric == MemoryMetric::GpuDedicated
-                        || self.metric == MemoryMetric::GpuShared)
-                {
-                    self.metric = MemoryMetric::WorkingSet;
+                if tab == MemoryTab::VirtualMemory {
+                    self.metric = MemoryMetric::PrivateWs;
+                } else if tab == MemoryTab::SystemRam {
+                    self.metric = if self.use_requested {
+                        MemoryMetric::PrivateWs
+                    } else {
+                        MemoryMetric::WorkingSet
+                    };
                 }
             }
             RammapMessage::SearchChanged(query) => self.search_query = query,

@@ -6,6 +6,7 @@ pub struct AppInput;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryTab {
     SystemRam,
+    VirtualMemory,
     GpuVram,
     Split,
 }
