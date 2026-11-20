@@ -43,9 +43,14 @@ fn fetch_all_processes(gpu_adapters: &[GpuAdapterInfo]) -> Vec<ProcessMemoryEntr
 
 impl RammapApp {
     pub(super) fn new(_input: &AppInput) -> Self {
-        let summary = collect_system_summary();
+        let mut summary = collect_system_summary();
         let gpu_adapters = collect_gpu_adapters();
         let processes = fetch_all_processes(&gpu_adapters);
+        summary.compressed_bytes = processes
+            .iter()
+            .filter(|p| p.name.eq_ignore_ascii_case("Memory Compression"))
+            .map(|p| p.working_set_bytes)
+            .sum();
         Self {
             tab: MemoryTab::SystemRam,
             summary,
@@ -71,6 +76,12 @@ impl RammapApp {
                 self.summary = collect_system_summary();
                 self.gpu_adapters = collect_gpu_adapters();
                 self.processes = fetch_all_processes(&self.gpu_adapters);
+                self.summary.compressed_bytes = self
+                    .processes
+                    .iter()
+                    .filter(|p| p.name.eq_ignore_ascii_case("Memory Compression"))
+                    .map(|p| p.working_set_bytes)
+                    .sum();
                 if let Some(ref sel) = self.selected_process {
                     let pid = sel.pid;
                     self.selected_process = self.processes.iter().find(|p| p.pid == pid).cloned();

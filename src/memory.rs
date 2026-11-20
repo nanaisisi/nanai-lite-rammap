@@ -24,6 +24,7 @@ pub struct SystemMemorySummary {
     pub paged_pool_bytes: u64,
     pub nonpaged_pool_bytes: u64,
     pub system_cache_bytes: u64,
+    pub compressed_bytes: u64,
     pub process_count: u32,
 }
 

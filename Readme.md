@@ -1,6 +1,6 @@
 # nanai-lite-rammap
 
-AI生成による軽量メモリ・GPUリソース可視化ツールです。  
+AI生成によるWindows用の軽量メモリ・GPUリソース可視化ツールです。  
 タスクマネージャー程度の低負荷で動作する、RAMMapのLite版的立ち位置として作成されています。
 
 GUIフレームワークには、Microsoft公式系のアプローチに近い **windows-reactor** を採用しています。
