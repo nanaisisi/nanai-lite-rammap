@@ -31,43 +31,18 @@ fn build_single<S>(app: &RammapApp, sender: S, filtered: Vec<ProcessMemoryEntry>
 where
     S: Fn(RammapMessage) + Clone + 'static,
 {
-    let filtered: Vec<ProcessMemoryEntry> = if app.tab == MemoryTab::GpuVram {
-        filtered
-            .into_iter()
-            .map(|mut p| {
-                let usage = p
-                    .gpu_per_adapter
-                    .get(app.selected_gpu_index)
-                    .copied()
-                    .unwrap_or_default();
-                if app.use_requested {
-                    p.gpu_dedicated_bytes = usage.dedicated_requested;
-                    p.gpu_shared_bytes = usage.shared_requested;
-                } else {
-                    p.gpu_dedicated_bytes = usage.dedicated_usage;
-                    p.gpu_shared_bytes = usage.shared_usage;
-                }
-                p
-            })
-            .collect()
-    } else {
-        filtered
-    };
+    if app.tab == MemoryTab::GpuVram {
+        return build_gpu_single(app, sender, filtered);
+    }
+
     let total_capacity_bytes = if !app.show_free_space || !app.search_query.is_empty() {
         None
     } else {
-        match app.tab {
-            MemoryTab::SystemRam => Some(if app.use_requested {
-                app.summary.commit_limit_bytes
-            } else {
-                app.summary.total_phys_bytes
-            }),
-            MemoryTab::GpuVram => app
-                .gpu_adapters
-                .get(app.selected_gpu_index)
-                .map(|g| g.dedicated_vram_bytes),
-            MemoryTab::Split => None,
-        }
+        Some(if app.use_requested {
+            app.summary.commit_limit_bytes
+        } else {
+            app.summary.total_phys_bytes
+        })
     };
 
     match app.view_mode {
@@ -84,6 +59,20 @@ where
             GroupMode::ByName | GroupMode::ByCategory => grouped_list(app, sender, filtered),
         },
     }
+}
+
+fn build_gpu_single<S>(app: &RammapApp, sender: S, filtered: Vec<ProcessMemoryEntry>) -> View
+where
+    S: Fn(RammapMessage) + Clone + 'static,
+{
+    let idx = app.selected_gpu_index;
+    let Some(adapter) = app.gpu_adapters.get(idx) else {
+        return TextBlock::new()
+            .text("No DirectX 11/12 GPU detected")
+            .font_size(14.0)
+            .into();
+    };
+    build_gpu_column(app, sender, &filtered, idx, adapter, SPLIT_CANVAS_WIDTH)
 }
 
 fn build_split<S>(app: &RammapApp, sender: S, filtered: Vec<ProcessMemoryEntry>) -> View
@@ -108,122 +97,14 @@ where
     let mut gpu_columns: Vec<View> = Vec::with_capacity(adapter_count);
 
     for (idx, adapter) in app.gpu_adapters.iter().enumerate() {
-        let adapter_processes: Vec<ProcessMemoryEntry> = filtered
-            .iter()
-            .cloned()
-            .map(|mut p| {
-                let usage = p.gpu_per_adapter.get(idx).copied().unwrap_or_default();
-                if app.use_requested {
-                    p.gpu_dedicated_bytes = usage.dedicated_requested;
-                    p.gpu_shared_bytes = usage.shared_requested;
-                } else {
-                    p.gpu_dedicated_bytes = usage.dedicated_usage;
-                    p.gpu_shared_bytes = usage.shared_usage;
-                }
-                p
-            })
-            .collect();
-
-        let dedicated_cap = if app.show_free_space && app.search_query.is_empty() {
-            Some(adapter.dedicated_vram_bytes)
-        } else {
-            None
-        };
-        let shared_cap = if app.show_free_space && app.search_query.is_empty() {
-            Some(adapter.shared_ram_bytes)
-        } else {
-            None
-        };
-
-        let dedicated_view = match app.view_mode {
-            ViewMode::Treemap => match app.group_mode {
-                GroupMode::Individual => individual_treemap_with_metric(
-                    app,
-                    sender.clone(),
-                    adapter_processes.clone(),
-                    MemoryMetric::GpuDedicated,
-                    panel_width,
-                    SPLIT_CANVAS_HEIGHT,
-                    dedicated_cap,
-                ),
-                GroupMode::ByName | GroupMode::ByCategory => grouped_treemap_with_metric(
-                    app,
-                    sender.clone(),
-                    adapter_processes.clone(),
-                    MemoryMetric::GpuDedicated,
-                    panel_width,
-                    SPLIT_CANVAS_HEIGHT,
-                    dedicated_cap,
-                ),
-            },
-            ViewMode::List => match app.group_mode {
-                GroupMode::Individual => individual_list_with_metric(
-                    app,
-                    sender.clone(),
-                    adapter_processes.clone(),
-                    MemoryMetric::GpuDedicated,
-                ),
-                GroupMode::ByName | GroupMode::ByCategory => grouped_list_with_metric(
-                    app,
-                    sender.clone(),
-                    adapter_processes.clone(),
-                    MemoryMetric::GpuDedicated,
-                ),
-            },
-        };
-
-        let shared_view = match app.view_mode {
-            ViewMode::Treemap => match app.group_mode {
-                GroupMode::Individual => individual_treemap_with_metric(
-                    app,
-                    sender.clone(),
-                    adapter_processes.clone(),
-                    MemoryMetric::GpuShared,
-                    panel_width,
-                    SPLIT_CANVAS_HEIGHT,
-                    shared_cap,
-                ),
-                GroupMode::ByName | GroupMode::ByCategory => grouped_treemap_with_metric(
-                    app,
-                    sender.clone(),
-                    adapter_processes.clone(),
-                    MemoryMetric::GpuShared,
-                    panel_width,
-                    SPLIT_CANVAS_HEIGHT,
-                    shared_cap,
-                ),
-            },
-            ViewMode::List => match app.group_mode {
-                GroupMode::Individual => individual_list_with_metric(
-                    app,
-                    sender.clone(),
-                    adapter_processes.clone(),
-                    MemoryMetric::GpuShared,
-                ),
-                GroupMode::ByName | GroupMode::ByCategory => grouped_list_with_metric(
-                    app,
-                    sender.clone(),
-                    adapter_processes,
-                    MemoryMetric::GpuShared,
-                ),
-            },
-        };
-
-        let kind = if adapter.is_discrete { "dGPU" } else { "iGPU" };
-        let column = StackPanel::new()
-            .spacing(6.0)
-            .children((
-                TextBlock::new()
-                    .text(format!("🎮 GPU {} [{}]: {}", idx, kind, adapter.name))
-                    .font_size(14.0)
-                    .font_weight(FontWeight::BOLD),
-                TextBlock::new().text("Dedicated VRAM").font_size(12.0),
-                dedicated_view,
-                TextBlock::new().text("Shared GPU Memory").font_size(12.0),
-                shared_view,
-            ))
-            .into();
-        gpu_columns.push(column);
+        gpu_columns.push(build_gpu_column(
+            app,
+            sender.clone(),
+            &filtered,
+            idx,
+            adapter,
+            panel_width,
+        ));
     }
 
     if gpu_columns.is_empty() {
@@ -247,4 +128,143 @@ where
             .content(row)
             .into(),
     }
+}
+
+fn build_gpu_column<S>(
+    app: &RammapApp,
+    sender: S,
+    filtered: &[ProcessMemoryEntry],
+    idx: usize,
+    adapter: &crate::gpu::GpuAdapterInfo,
+    panel_width: f64,
+) -> View
+where
+    S: Fn(RammapMessage) + Clone + 'static,
+{
+    let adapter_processes: Vec<ProcessMemoryEntry> = filtered
+        .iter()
+        .cloned()
+        .map(|mut p| {
+            let usage = p.gpu_per_adapter.get(idx).copied().unwrap_or_default();
+            if app.use_requested {
+                p.gpu_dedicated_bytes = usage.dedicated_requested;
+                p.gpu_shared_bytes = usage.shared_requested;
+            } else {
+                p.gpu_dedicated_bytes = usage.dedicated_usage;
+                p.gpu_shared_bytes = usage.shared_usage;
+            }
+            p
+        })
+        .collect();
+
+    let dedicated_cap = if app.show_free_space && app.search_query.is_empty() {
+        Some(adapter.dedicated_vram_bytes)
+    } else {
+        None
+    };
+    let shared_cap = if app.show_free_space && app.search_query.is_empty() {
+        Some(adapter.shared_ram_bytes)
+    } else {
+        None
+    };
+
+    let (dedicated_height, shared_height) = if app.proportional_gpu {
+        let total_h = SPLIT_CANVAS_HEIGHT * 2.0;
+        let ded = adapter.dedicated_vram_bytes as f64;
+        let shd = adapter.shared_ram_bytes as f64;
+        let sum = (ded + shd).max(1.0);
+        let d_h = (total_h * (ded / sum)).clamp(40.0, total_h - 40.0);
+        (d_h, total_h - d_h)
+    } else {
+        (SPLIT_CANVAS_HEIGHT, SPLIT_CANVAS_HEIGHT)
+    };
+
+    let dedicated_view = match app.view_mode {
+        ViewMode::Treemap => match app.group_mode {
+            GroupMode::Individual => individual_treemap_with_metric(
+                app,
+                sender.clone(),
+                adapter_processes.clone(),
+                MemoryMetric::GpuDedicated,
+                panel_width,
+                dedicated_height,
+                dedicated_cap,
+            ),
+            GroupMode::ByName | GroupMode::ByCategory => grouped_treemap_with_metric(
+                app,
+                sender.clone(),
+                adapter_processes.clone(),
+                MemoryMetric::GpuDedicated,
+                panel_width,
+                dedicated_height,
+                dedicated_cap,
+            ),
+        },
+        ViewMode::List => match app.group_mode {
+            GroupMode::Individual => individual_list_with_metric(
+                app,
+                sender.clone(),
+                adapter_processes.clone(),
+                MemoryMetric::GpuDedicated,
+            ),
+            GroupMode::ByName | GroupMode::ByCategory => grouped_list_with_metric(
+                app,
+                sender.clone(),
+                adapter_processes.clone(),
+                MemoryMetric::GpuDedicated,
+            ),
+        },
+    };
+
+    let shared_view = match app.view_mode {
+        ViewMode::Treemap => match app.group_mode {
+            GroupMode::Individual => individual_treemap_with_metric(
+                app,
+                sender.clone(),
+                adapter_processes.clone(),
+                MemoryMetric::GpuShared,
+                panel_width,
+                shared_height,
+                shared_cap,
+            ),
+            GroupMode::ByName | GroupMode::ByCategory => grouped_treemap_with_metric(
+                app,
+                sender.clone(),
+                adapter_processes.clone(),
+                MemoryMetric::GpuShared,
+                panel_width,
+                shared_height,
+                shared_cap,
+            ),
+        },
+        ViewMode::List => match app.group_mode {
+            GroupMode::Individual => individual_list_with_metric(
+                app,
+                sender.clone(),
+                adapter_processes.clone(),
+                MemoryMetric::GpuShared,
+            ),
+            GroupMode::ByName | GroupMode::ByCategory => grouped_list_with_metric(
+                app,
+                sender,
+                adapter_processes,
+                MemoryMetric::GpuShared,
+            ),
+        },
+    };
+
+    let kind = if adapter.is_discrete { "dGPU" } else { "iGPU" };
+    StackPanel::new()
+        .spacing(6.0)
+        .children((
+            TextBlock::new()
+                .text(format!("🎮 GPU {} [{}]: {}", idx, kind, adapter.name))
+                .font_size(14.0)
+                .font_weight(FontWeight::BOLD),
+            TextBlock::new().text("Dedicated VRAM").font_size(12.0),
+            dedicated_view,
+            TextBlock::new().text("Shared GPU Memory").font_size(12.0),
+            shared_view,
+        ))
+        .into()
 }

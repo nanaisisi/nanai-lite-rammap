@@ -153,6 +153,14 @@ impl RammapApp {
                 send.clone(),
             ),
         ];
+        if self.tab == MemoryTab::GpuVram || self.tab == MemoryTab::Split {
+            view_buttons.push(self.selectable_button(
+                "⚖️ Scale",
+                self.proportional_gpu,
+                RammapMessage::ToggleProportionalGpu,
+                send.clone(),
+            ));
+        }
         if self.tab == MemoryTab::GpuVram && self.gpu_adapters.len() > 1 {
             view_buttons.push(self.message_button(
                 self.gpu_adapter_label(),

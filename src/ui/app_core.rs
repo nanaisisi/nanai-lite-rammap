@@ -19,6 +19,7 @@ pub struct RammapApp {
     pub(super) metric: MemoryMetric,
     pub(super) use_requested: bool,
     pub(super) show_free_space: bool,
+    pub(super) proportional_gpu: bool,
     pub(super) selected_process: Option<ProcessMemoryEntry>,
     pub(super) selected_group_title: Option<String>,
 }
@@ -58,6 +59,7 @@ impl RammapApp {
             metric: MemoryMetric::WorkingSet,
             use_requested: false,
             show_free_space: true,
+            proportional_gpu: false,
             selected_process: None,
             selected_group_title: None,
         }
@@ -99,6 +101,9 @@ impl RammapApp {
             }
             RammapMessage::ToggleFreeSpace => {
                 self.show_free_space = !self.show_free_space;
+            }
+            RammapMessage::ToggleProportionalGpu => {
+                self.proportional_gpu = !self.proportional_gpu;
             }
             RammapMessage::CycleGpuAdapter => {
                 if !self.gpu_adapters.is_empty() {

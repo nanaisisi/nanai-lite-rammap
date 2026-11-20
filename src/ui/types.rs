@@ -46,6 +46,7 @@ pub enum RammapMessage {
     SetGroupMode(GroupMode),
     ToggleSplitLayoutMode,
     ToggleFreeSpace,
+    ToggleProportionalGpu,
     CycleGpuAdapter,
     ToggleMetric,
     SelectProcess(Option<ProcessMemoryEntry>, Option<String>),
