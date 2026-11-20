@@ -26,6 +26,7 @@ where
             build_single(app, sender, filtered)
         }
         MemoryTab::TotalMemory => build_total_memory(app, sender, filtered),
+        MemoryTab::AllMemory => build_all_memory(app, sender, filtered),
         MemoryTab::Split => build_split(app, sender, filtered),
     }
 }
@@ -179,6 +180,218 @@ where
             pf_view,
         ))
         .into()
+}
+
+fn build_all_memory<S>(app: &RammapApp, sender: S, filtered: Vec<ProcessMemoryEntry>) -> View
+where
+    S: Fn(RammapMessage) + Clone + 'static,
+{
+    let dgpus: Vec<(usize, &crate::gpu::GpuAdapterInfo)> = app
+        .gpu_adapters
+        .iter()
+        .enumerate()
+        .filter(|(_, g)| g.is_discrete)
+        .collect();
+
+    let total_cap: u64 = app
+        .summary
+        .total_phys_bytes
+        .saturating_add(app.summary.pagefile_total_bytes)
+        .saturating_add(dgpus.iter().map(|(_, g)| g.dedicated_vram_bytes).sum::<u64>())
+        .max(1);
+
+    let panel_count = 2 + dgpus.len();
+    let total_h = SPLIT_CANVAS_HEIGHT * 2.0;
+    let calc_h = |cap: u64| -> f64 {
+        if app.proportional_gpu {
+            (total_h * (cap as f64 / total_cap as f64)).max(24.0)
+        } else {
+            (total_h / panel_count as f64).max(80.0)
+        }
+    };
+
+    let phys_h = calc_h(app.summary.total_phys_bytes);
+    let pf_h = calc_h(app.summary.pagefile_total_bytes);
+
+    let phys_cap = if app.show_free_space && app.search_query.is_empty() {
+        Some(app.summary.total_phys_bytes)
+    } else {
+        None
+    };
+    let pf_cap = if app.show_free_space && app.search_query.is_empty() {
+        Some(app.summary.pagefile_total_bytes)
+    } else {
+        None
+    };
+
+    let phys_metric = if app.use_requested {
+        MemoryMetric::PrivateWs
+    } else {
+        MemoryMetric::WorkingSet
+    };
+
+    let phys_view = match app.view_mode {
+        ViewMode::Treemap => match app.group_mode {
+            GroupMode::Individual => individual_treemap_with_metric(
+                app,
+                sender.clone(),
+                filtered.clone(),
+                phys_metric,
+                SPLIT_CANVAS_WIDTH,
+                phys_h,
+                phys_cap,
+            ),
+            GroupMode::ByName | GroupMode::ByCategory => grouped_treemap_with_metric(
+                app,
+                sender.clone(),
+                filtered.clone(),
+                phys_metric,
+                SPLIT_CANVAS_WIDTH,
+                phys_h,
+                phys_cap,
+            ),
+        },
+        ViewMode::List => match app.group_mode {
+            GroupMode::Individual => {
+                individual_list_with_metric(app, sender.clone(), filtered.clone(), phys_metric)
+            }
+            GroupMode::ByName | GroupMode::ByCategory => {
+                grouped_list_with_metric(app, sender.clone(), filtered.clone(), phys_metric)
+            }
+        },
+    };
+
+    let pf_view = match app.view_mode {
+        ViewMode::Treemap => match app.group_mode {
+            GroupMode::Individual => individual_treemap_with_metric(
+                app,
+                sender.clone(),
+                filtered.clone(),
+                MemoryMetric::PagefileUsage,
+                SPLIT_CANVAS_WIDTH,
+                pf_h,
+                pf_cap,
+            ),
+            GroupMode::ByName | GroupMode::ByCategory => grouped_treemap_with_metric(
+                app,
+                sender.clone(),
+                filtered.clone(),
+                MemoryMetric::PagefileUsage,
+                SPLIT_CANVAS_WIDTH,
+                pf_h,
+                pf_cap,
+            ),
+        },
+        ViewMode::List => match app.group_mode {
+            GroupMode::Individual => individual_list_with_metric(
+                app,
+                sender.clone(),
+                filtered.clone(),
+                MemoryMetric::PagefileUsage,
+            ),
+            GroupMode::ByName | GroupMode::ByCategory => grouped_list_with_metric(
+                app,
+                sender.clone(),
+                filtered.clone(),
+                MemoryMetric::PagefileUsage,
+            ),
+        },
+    };
+
+    let mut children: Vec<View> = vec![
+        TextBlock::new()
+            .text(format!(
+                "💻 Physical RAM (Total: {} | Used: {})",
+                crate::memory::format_bytes(app.summary.total_phys_bytes),
+                crate::memory::format_bytes(app.summary.used_phys_bytes)
+            ))
+            .font_size(12.0)
+            .into(),
+        phys_view,
+        TextBlock::new()
+            .text(format!(
+                "💾 Virtual Memory / PageFile (Total: {} | Used: {})",
+                crate::memory::format_bytes(app.summary.pagefile_total_bytes),
+                crate::memory::format_bytes(app.summary.pagefile_in_use_bytes)
+            ))
+            .font_size(12.0)
+            .into(),
+        pf_view,
+    ];
+
+    for (idx, adapter) in dgpus {
+        let d_h = calc_h(adapter.dedicated_vram_bytes);
+        let d_cap = if app.show_free_space && app.search_query.is_empty() {
+            Some(adapter.dedicated_vram_bytes)
+        } else {
+            None
+        };
+        let adapter_processes: Vec<ProcessMemoryEntry> = filtered
+            .iter()
+            .cloned()
+            .map(|mut p| {
+                let usage = p.gpu_per_adapter.get(idx).copied().unwrap_or_default();
+                p.gpu_dedicated_bytes = if app.use_requested {
+                    usage.dedicated_requested
+                } else {
+                    usage.dedicated_usage
+                };
+                p
+            })
+            .collect();
+
+        let d_view = match app.view_mode {
+            ViewMode::Treemap => match app.group_mode {
+                GroupMode::Individual => individual_treemap_with_metric(
+                    app,
+                    sender.clone(),
+                    adapter_processes,
+                    MemoryMetric::GpuDedicated,
+                    SPLIT_CANVAS_WIDTH,
+                    d_h,
+                    d_cap,
+                ),
+                GroupMode::ByName | GroupMode::ByCategory => grouped_treemap_with_metric(
+                    app,
+                    sender.clone(),
+                    adapter_processes,
+                    MemoryMetric::GpuDedicated,
+                    SPLIT_CANVAS_WIDTH,
+                    d_h,
+                    d_cap,
+                ),
+            },
+            ViewMode::List => match app.group_mode {
+                GroupMode::Individual => individual_list_with_metric(
+                    app,
+                    sender.clone(),
+                    adapter_processes,
+                    MemoryMetric::GpuDedicated,
+                ),
+                GroupMode::ByName | GroupMode::ByCategory => grouped_list_with_metric(
+                    app,
+                    sender.clone(),
+                    adapter_processes,
+                    MemoryMetric::GpuDedicated,
+                ),
+            },
+        };
+
+        children.push(
+            TextBlock::new()
+                .text(format!(
+                    "🎮 GPU {} [dGPU]: {} (Dedicated VRAM: {})",
+                    idx,
+                    adapter.name,
+                    crate::memory::format_bytes(adapter.dedicated_vram_bytes)
+                ))
+                .font_size(12.0)
+                .into(),
+        );
+        children.push(d_view);
+    }
+
+    StackPanel::new().spacing(6.0).children(children).into()
 }
 
 fn build_gpu_single<S>(app: &RammapApp, sender: S, filtered: Vec<ProcessMemoryEntry>) -> View

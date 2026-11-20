@@ -114,6 +114,12 @@ impl RammapApp {
                     RammapMessage::SetTab(MemoryTab::Split),
                     send.clone(),
                 ),
+                self.selectable_button(
+                    "🌌 All Mem",
+                    self.tab == MemoryTab::AllMemory,
+                    RammapMessage::SetTab(MemoryTab::AllMemory),
+                    send.clone(),
+                ),
                 self.message_button("🔄 Refresh", RammapMessage::Refresh, send.clone()),
             ));
         let mut view_buttons: Vec<View> = vec![
@@ -260,11 +266,31 @@ impl RammapApp {
             format_bytes(self.summary.commit_total_bytes),
             format_bytes(self.summary.commit_limit_bytes)
         );
+        let dgpu_total: u64 = self
+            .gpu_adapters
+            .iter()
+            .filter(|g| g.is_discrete)
+            .map(|g| g.dedicated_vram_bytes)
+            .sum();
+        let all_cap = self
+            .summary
+            .total_phys_bytes
+            .saturating_add(self.summary.pagefile_total_bytes)
+            .saturating_add(dgpu_total);
+        let all_summary = format!(
+            "Processes: {} | Real Total (RAM + PageFile + dGPU VRAM): {} (RAM: {} | PageFile: {} | dGPU VRAM: {})",
+            self.summary.process_count,
+            format_bytes(all_cap),
+            format_bytes(self.summary.total_phys_bytes),
+            format_bytes(self.summary.pagefile_total_bytes),
+            format_bytes(dgpu_total)
+        );
         let gpu_summary = format!("Processes: {} | {}", self.summary.process_count, gpu);
         match self.tab {
             MemoryTab::SystemRam => ram_summary,
             MemoryTab::VirtualMemory => vmem_summary,
             MemoryTab::TotalMemory => total_summary,
+            MemoryTab::AllMemory => all_summary,
             MemoryTab::GpuVram | MemoryTab::Split => gpu_summary,
         }
     }

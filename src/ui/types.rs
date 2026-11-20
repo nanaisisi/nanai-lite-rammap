@@ -10,6 +10,7 @@ pub enum MemoryTab {
     TotalMemory,
     GpuVram,
     Split,
+    AllMemory,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
