@@ -236,15 +236,19 @@ impl RammapApp {
             format_bytes(self.summary.paged_pool_bytes),
             format_bytes(self.summary.nonpaged_pool_bytes)
         );
+        let pf_total = self
+            .summary
+            .commit_limit_bytes
+            .saturating_sub(self.summary.total_phys_bytes);
+        let pf_used = self
+            .summary
+            .commit_total_bytes
+            .saturating_sub(self.summary.used_phys_bytes);
         let vmem_summary = format!(
-            "Processes: {} | PageFile: {} / {}",
+            "Processes: {} | PageFile (Virtual): {} / {}",
             self.summary.process_count,
-            format_bytes(
-                self.summary
-                    .total_page_file_bytes
-                    .saturating_sub(self.summary.avail_page_file_bytes)
-            ),
-            format_bytes(self.summary.total_page_file_bytes)
+            format_bytes(pf_used),
+            format_bytes(pf_total)
         );
         let total_summary = format!(
             "Processes: {} | Commit (RAM + PageFile): {} / {}",

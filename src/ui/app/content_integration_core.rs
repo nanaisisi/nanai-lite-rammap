@@ -6,7 +6,7 @@ use crate::memory::{ProcessMemoryEntry, format_bytes};
 use crate::treemap::{Rect, TreemapItem, layout_treemap};
 use crate::ui::app_core::RammapApp;
 use crate::ui::theme::{color_for_category, wrap_canvas};
-use crate::ui::types::{GroupMode, MemoryMetric, RammapMessage};
+use crate::ui::types::{GroupMode, MemoryMetric, MemoryTab, RammapMessage};
 use windows_reactor::*;
 
 const CANVAS_WIDTH: f64 = 960.0;
@@ -18,6 +18,94 @@ fn bounds(width: f64, height: f64) -> Rect {
         y: 0.0,
         width,
         height,
+    }
+}
+
+#[derive(Clone)]
+enum TreemapEntry<T> {
+    Item(T),
+    System {
+        label: &'static str,
+        bytes: u64,
+        color: Color,
+    },
+    Free(u64),
+}
+
+fn push_system_and_free<T>(
+    items: &mut Vec<TreemapItem<TreemapEntry<T>>>,
+    app: &RammapApp,
+    used_bytes: u64,
+    total_capacity_bytes: Option<u64>,
+) {
+    let mut extra_used = 0u64;
+    if app.tab == MemoryTab::SystemRam && app.search_query.is_empty() {
+        let sys_blocks = [
+            (
+                "Paged Pool",
+                app.summary.paged_pool_bytes,
+                Color::argb(255, 110, 80, 150),
+            ),
+            (
+                "Non-Paged Pool",
+                app.summary.nonpaged_pool_bytes,
+                Color::argb(255, 150, 75, 110),
+            ),
+            (
+                "Compressed",
+                app.summary.compressed_bytes,
+                Color::argb(255, 70, 125, 140),
+            ),
+        ];
+        for (label, bytes, color) in sys_blocks {
+            if bytes > 0 {
+                extra_used = extra_used.saturating_add(bytes);
+                items.push(TreemapItem {
+                    value: bytes as f64,
+                    data: TreemapEntry::System {
+                        label,
+                        bytes,
+                        color,
+                    },
+                });
+            }
+        }
+    } else if app.tab == MemoryTab::VirtualMemory && app.search_query.is_empty() {
+        items.clear();
+        let pf_used = app
+            .summary
+            .commit_total_bytes
+            .saturating_sub(app.summary.used_phys_bytes);
+        if pf_used > 0 {
+            extra_used = pf_used;
+            items.push(TreemapItem {
+                value: pf_used as f64,
+                data: TreemapEntry::System {
+                    label: "PageFile Used",
+                    bytes: pf_used,
+                    color: Color::argb(255, 80, 130, 180),
+                },
+            });
+        }
+        let pf_free = total_capacity_bytes
+            .map(|cap| cap.saturating_sub(extra_used))
+            .unwrap_or(0);
+        if pf_free > 0 {
+            items.push(TreemapItem {
+                value: pf_free as f64,
+                data: TreemapEntry::Free(pf_free),
+            });
+        }
+        return;
+    }
+    let free_bytes = total_capacity_bytes
+        .map(|cap| cap.saturating_sub(used_bytes.saturating_add(extra_used)))
+        .unwrap_or(0);
+    if free_bytes > 0 {
+        items.push(TreemapItem {
+            value: free_bytes as f64,
+            data: TreemapEntry::Free(free_bytes),
+        });
     }
 }
 
@@ -52,48 +140,75 @@ pub(super) fn individual_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'sta
         .into_iter()
         .map(|p| TreemapItem {
             value: metric_value(&p, metric),
-            data: Some(p),
+            data: TreemapEntry::Item(p),
         })
         .collect::<Vec<_>>();
-    let free_bytes = total_capacity_bytes
-        .map(|cap| cap.saturating_sub(used_bytes))
-        .unwrap_or(0);
-    if free_bytes > 0 {
-        items.push(TreemapItem {
-            value: free_bytes as f64,
-            data: None,
-        });
-    }
+    push_system_and_free(&mut items, app, used_bytes, total_capacity_bytes);
     let mut elements = Vec::new();
 
     for node in layout_treemap(&items, bounds(canvas_width, canvas_height)) {
-        let Some(p) = node.data else {
-            let label = if node.rect.width > 55.0 && node.rect.height > 26.0 {
-                format!("Free\n{}", format_bytes(free_bytes))
-            } else {
-                String::new()
-            };
-            let click_sender = sender.clone();
-            let block = Border::new()
-                .width(node.rect.width.max(2.0))
-                .height(node.rect.height.max(2.0))
-                .background(Brush::Solid(Color::argb(255, 45, 45, 50)))
-                .border_brush(Brush::Solid(Color::argb(200, 30, 30, 34)))
-                .border_thickness(Thickness::uniform(1.0))
-                .corner_radius(CornerRadius::uniform(3.0))
-                .canvas_left(node.rect.x)
-                .canvas_top(node.rect.y)
-                .on_pointer_pressed(move |_| {
-                    click_sender(RammapMessage::SelectProcess(None, None));
-                })
-                .content(
-                    TextBlock::new()
-                        .text(label)
-                        .font_size(11.0)
-                        .margin(Thickness::xy(3.0, 2.0)),
-                );
-            elements.push(block.into());
-            continue;
+        let p = match node.data {
+            TreemapEntry::Item(p) => p,
+            TreemapEntry::System {
+                label: name,
+                bytes,
+                color,
+            } => {
+                let label = if node.rect.width > 55.0 && node.rect.height > 26.0 {
+                    format!("{}\n{}", name, format_bytes(bytes))
+                } else {
+                    String::new()
+                };
+                let click_sender = sender.clone();
+                let block = Border::new()
+                    .width(node.rect.width.max(2.0))
+                    .height(node.rect.height.max(2.0))
+                    .background(Brush::Solid(color))
+                    .border_brush(Brush::Solid(Color::argb(200, 20, 20, 20)))
+                    .border_thickness(Thickness::uniform(1.0))
+                    .corner_radius(CornerRadius::uniform(3.0))
+                    .canvas_left(node.rect.x)
+                    .canvas_top(node.rect.y)
+                    .on_pointer_pressed(move |_| {
+                        click_sender(RammapMessage::SelectProcess(None, None));
+                    })
+                    .content(
+                        TextBlock::new()
+                            .text(label)
+                            .font_size(11.0)
+                            .margin(Thickness::xy(3.0, 2.0)),
+                    );
+                elements.push(block.into());
+                continue;
+            }
+            TreemapEntry::Free(free_bytes) => {
+                let label = if node.rect.width > 55.0 && node.rect.height > 26.0 {
+                    format!("Free\n{}", format_bytes(free_bytes))
+                } else {
+                    String::new()
+                };
+                let click_sender = sender.clone();
+                let block = Border::new()
+                    .width(node.rect.width.max(2.0))
+                    .height(node.rect.height.max(2.0))
+                    .background(Brush::Solid(Color::argb(255, 45, 45, 50)))
+                    .border_brush(Brush::Solid(Color::argb(200, 30, 30, 34)))
+                    .border_thickness(Thickness::uniform(1.0))
+                    .corner_radius(CornerRadius::uniform(3.0))
+                    .canvas_left(node.rect.x)
+                    .canvas_top(node.rect.y)
+                    .on_pointer_pressed(move |_| {
+                        click_sender(RammapMessage::SelectProcess(None, None));
+                    })
+                    .content(
+                        TextBlock::new()
+                            .text(label)
+                            .font_size(11.0)
+                            .margin(Thickness::xy(3.0, 2.0)),
+                    );
+                elements.push(block.into());
+                continue;
+            }
         };
         let pid = p.pid;
         let label_value = format_bytes(metric_bytes(&p, metric));
@@ -190,51 +305,78 @@ pub(super) fn grouped_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'static
         .into_iter()
         .map(|g| TreemapItem {
             value: group_metric_value(&g, metric),
-            data: Some(g),
+            data: TreemapEntry::Item(g),
         })
         .collect::<Vec<_>>();
-    let free_bytes = total_capacity_bytes
-        .map(|cap| cap.saturating_sub(used_bytes))
-        .unwrap_or(0);
-    if free_bytes > 0 {
-        items.push(TreemapItem {
-            value: free_bytes as f64,
-            data: None,
-        });
-    }
+    push_system_and_free(&mut items, app, used_bytes, total_capacity_bytes);
     let mut elements = Vec::new();
 
     for (index, node) in layout_treemap(&items, bounds(canvas_width, canvas_height))
         .into_iter()
         .enumerate()
     {
-        let Some(group) = node.data else {
-            let label = if node.rect.width > 60.0 && node.rect.height > 28.0 {
-                format!("Free\n{}", format_bytes(free_bytes))
-            } else {
-                String::new()
-            };
-            let click_sender = sender.clone();
-            let block = Border::new()
-                .width(node.rect.width.max(2.0))
-                .height(node.rect.height.max(2.0))
-                .background(Brush::Solid(Color::argb(255, 45, 45, 50)))
-                .border_brush(Brush::Solid(Color::argb(200, 30, 30, 34)))
-                .border_thickness(Thickness::uniform(1.0))
-                .corner_radius(CornerRadius::uniform(3.0))
-                .canvas_left(node.rect.x)
-                .canvas_top(node.rect.y)
-                .on_pointer_pressed(move |_| {
-                    click_sender(RammapMessage::SelectProcess(None, None));
-                })
-                .content(
-                    TextBlock::new()
-                        .text(label)
-                        .font_size(11.5)
-                        .margin(Thickness::xy(4.0, 3.0)),
-                );
-            elements.push(block.into());
-            continue;
+        let group = match node.data {
+            TreemapEntry::Item(g) => g,
+            TreemapEntry::System {
+                label: name,
+                bytes,
+                color,
+            } => {
+                let label = if node.rect.width > 60.0 && node.rect.height > 28.0 {
+                    format!("{}\n{}", name, format_bytes(bytes))
+                } else {
+                    String::new()
+                };
+                let click_sender = sender.clone();
+                let block = Border::new()
+                    .width(node.rect.width.max(2.0))
+                    .height(node.rect.height.max(2.0))
+                    .background(Brush::Solid(color))
+                    .border_brush(Brush::Solid(Color::argb(200, 20, 20, 20)))
+                    .border_thickness(Thickness::uniform(1.0))
+                    .corner_radius(CornerRadius::uniform(3.0))
+                    .canvas_left(node.rect.x)
+                    .canvas_top(node.rect.y)
+                    .on_pointer_pressed(move |_| {
+                        click_sender(RammapMessage::SelectProcess(None, None));
+                    })
+                    .content(
+                        TextBlock::new()
+                            .text(label)
+                            .font_size(11.5)
+                            .margin(Thickness::xy(4.0, 3.0)),
+                    );
+                elements.push(block.into());
+                continue;
+            }
+            TreemapEntry::Free(free_bytes) => {
+                let label = if node.rect.width > 60.0 && node.rect.height > 28.0 {
+                    format!("Free\n{}", format_bytes(free_bytes))
+                } else {
+                    String::new()
+                };
+                let click_sender = sender.clone();
+                let block = Border::new()
+                    .width(node.rect.width.max(2.0))
+                    .height(node.rect.height.max(2.0))
+                    .background(Brush::Solid(Color::argb(255, 45, 45, 50)))
+                    .border_brush(Brush::Solid(Color::argb(200, 30, 30, 34)))
+                    .border_thickness(Thickness::uniform(1.0))
+                    .corner_radius(CornerRadius::uniform(3.0))
+                    .canvas_left(node.rect.x)
+                    .canvas_top(node.rect.y)
+                    .on_pointer_pressed(move |_| {
+                        click_sender(RammapMessage::SelectProcess(None, None));
+                    })
+                    .content(
+                        TextBlock::new()
+                            .text(label)
+                            .font_size(11.5)
+                            .margin(Thickness::xy(4.0, 3.0)),
+                    );
+                elements.push(block.into());
+                continue;
+            }
         };
         let selected = app.selected_group_title.as_ref() == Some(&group.title);
         let background = if selected {

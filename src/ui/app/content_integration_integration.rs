@@ -41,7 +41,11 @@ where
     let total_capacity_bytes = if !app.show_free_space || !app.search_query.is_empty() {
         None
     } else if app.tab == MemoryTab::VirtualMemory {
-        Some(app.summary.total_page_file_bytes)
+        Some(
+            app.summary
+                .commit_limit_bytes
+                .saturating_sub(app.summary.total_phys_bytes),
+        )
     } else if app.tab == MemoryTab::TotalMemory || app.use_requested {
         Some(app.summary.commit_limit_bytes)
     } else {
