@@ -45,6 +45,7 @@ pub enum RammapMessage {
     SetViewMode(ViewMode),
     SetGroupMode(GroupMode),
     ToggleSplitLayoutMode,
+    CycleGpuAdapter,
     ToggleMetric,
     SelectProcess(Option<ProcessMemoryEntry>, Option<String>),
 }

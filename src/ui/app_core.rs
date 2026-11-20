@@ -15,6 +15,7 @@ pub struct RammapApp {
     pub(super) view_mode: ViewMode,
     pub(super) group_mode: GroupMode,
     pub(super) split_layout_mode: SplitLayoutMode,
+    pub(super) selected_gpu_index: usize,
     pub(super) metric: MemoryMetric,
     pub(super) use_requested: bool,
     pub(super) selected_process: Option<ProcessMemoryEntry>,
@@ -52,6 +53,7 @@ impl RammapApp {
             view_mode: ViewMode::Treemap,
             group_mode: GroupMode::ByName,
             split_layout_mode: SplitLayoutMode::Fit,
+            selected_gpu_index: 0,
             metric: MemoryMetric::WorkingSet,
             use_requested: false,
             selected_process: None,
@@ -92,6 +94,11 @@ impl RammapApp {
                     SplitLayoutMode::Fit => SplitLayoutMode::Scroll,
                     SplitLayoutMode::Scroll => SplitLayoutMode::Fit,
                 };
+            }
+            RammapMessage::CycleGpuAdapter => {
+                if !self.gpu_adapters.is_empty() {
+                    self.selected_gpu_index = (self.selected_gpu_index + 1) % self.gpu_adapters.len();
+                }
             }
             RammapMessage::ToggleMetric => {
                 self.use_requested = !self.use_requested;

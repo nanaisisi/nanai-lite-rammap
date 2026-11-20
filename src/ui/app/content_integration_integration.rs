@@ -31,12 +31,22 @@ fn build_single<S>(app: &RammapApp, sender: S, filtered: Vec<ProcessMemoryEntry>
 where
     S: Fn(RammapMessage) + Clone + 'static,
 {
-    let filtered: Vec<ProcessMemoryEntry> = if app.use_requested && app.tab == MemoryTab::GpuVram {
+    let filtered: Vec<ProcessMemoryEntry> = if app.tab == MemoryTab::GpuVram {
         filtered
             .into_iter()
             .map(|mut p| {
-                p.gpu_dedicated_bytes = p.gpu_dedicated_requested_bytes;
-                p.gpu_shared_bytes = p.gpu_shared_requested_bytes;
+                let usage = p
+                    .gpu_per_adapter
+                    .get(app.selected_gpu_index)
+                    .copied()
+                    .unwrap_or_default();
+                if app.use_requested {
+                    p.gpu_dedicated_bytes = usage.dedicated_requested;
+                    p.gpu_shared_bytes = usage.shared_requested;
+                } else {
+                    p.gpu_dedicated_bytes = usage.dedicated_usage;
+                    p.gpu_shared_bytes = usage.shared_usage;
+                }
                 p
             })
             .collect()

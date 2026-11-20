@@ -71,19 +71,80 @@ impl RammapApp {
             .orientation(Orientation::Horizontal)
             .spacing(8.0)
             .children((
-                self.tab_button("💻 System RAM", MemoryTab::SystemRam, send.clone()),
-                self.tab_button("🎮 GPU VRAM", MemoryTab::GpuVram, send.clone()),
-                self.tab_button("🧩 Split", MemoryTab::Split, send.clone()),
+                TextBlock::new()
+                    .text("Target:")
+                    .font_size(12.0)
+                    .vertical_alignment(VerticalAlignment::Center),
+                self.selectable_button(
+                    "💻 System RAM",
+                    self.tab == MemoryTab::SystemRam,
+                    RammapMessage::SetTab(MemoryTab::SystemRam),
+                    send.clone(),
+                ),
+                self.selectable_button(
+                    "🎮 GPU VRAM",
+                    self.tab == MemoryTab::GpuVram,
+                    RammapMessage::SetTab(MemoryTab::GpuVram),
+                    send.clone(),
+                ),
+                self.selectable_button(
+                    "🧩 GPU Split",
+                    self.tab == MemoryTab::Split,
+                    RammapMessage::SetTab(MemoryTab::Split),
+                    send.clone(),
+                ),
                 self.message_button("🔄 Refresh", RammapMessage::Refresh, send.clone()),
             ));
-        let mut view_buttons = vec![
-            self.mode_button("📊 2D Tree", ViewMode::Treemap, send.clone()),
-            self.mode_button("📋 List", ViewMode::List, send.clone()),
-            self.group_button("🗂️ By Name", GroupMode::ByName, send.clone()),
-            self.group_button("🏷️ By Category", GroupMode::ByCategory, send.clone()),
-            self.group_button("🔹 Individual", GroupMode::Individual, send.clone()),
+        let mut view_buttons: Vec<View> = vec![
+            TextBlock::new()
+                .text("View:")
+                .font_size(12.0)
+                .vertical_alignment(VerticalAlignment::Center)
+                .into(),
+            self.selectable_button(
+                "📊 2D Tree",
+                self.view_mode == ViewMode::Treemap,
+                RammapMessage::SetViewMode(ViewMode::Treemap),
+                send.clone(),
+            ),
+            self.selectable_button(
+                "📋 List",
+                self.view_mode == ViewMode::List,
+                RammapMessage::SetViewMode(ViewMode::List),
+                send.clone(),
+            ),
+            TextBlock::new()
+                .text("Group:")
+                .font_size(12.0)
+                .vertical_alignment(VerticalAlignment::Center)
+                .into(),
+            self.selectable_button(
+                "🗂️ Name",
+                self.group_mode == GroupMode::ByName,
+                RammapMessage::SetGroupMode(GroupMode::ByName),
+                send.clone(),
+            ),
+            self.selectable_button(
+                "🏷️ Category",
+                self.group_mode == GroupMode::ByCategory,
+                RammapMessage::SetGroupMode(GroupMode::ByCategory),
+                send.clone(),
+            ),
+            self.selectable_button(
+                "🔹 PID",
+                self.group_mode == GroupMode::Individual,
+                RammapMessage::SetGroupMode(GroupMode::Individual),
+                send.clone(),
+            ),
             self.message_button(self.metric_label(), RammapMessage::ToggleMetric, send.clone()),
         ];
+        if self.tab == MemoryTab::GpuVram && self.gpu_adapters.len() > 1 {
+            view_buttons.push(self.message_button(
+                self.gpu_adapter_label(),
+                RammapMessage::CycleGpuAdapter,
+                send.clone(),
+            ));
+        }
         if self.tab == MemoryTab::Split {
             view_buttons.push(self.message_button(
                 self.split_layout_label(),
@@ -145,6 +206,15 @@ impl RammapApp {
         }
     }
 
+    fn gpu_adapter_label(&self) -> String {
+        if let Some(g) = self.gpu_adapters.get(self.selected_gpu_index) {
+            let kind = if g.is_discrete { "dGPU" } else { "iGPU" };
+            format!("🎮 GPU {} [{}]", self.selected_gpu_index, kind)
+        } else {
+            "🎮 GPU 0".to_string()
+        }
+    }
+
     fn split_layout_label(&self) -> &'static str {
         match self.split_layout_mode {
             SplitLayoutMode::Fit => "📐 Split: Fit",
@@ -160,6 +230,22 @@ impl RammapApp {
         }
     }
 
+    fn selectable_button<S: Fn(RammapMessage) + Clone + 'static>(
+        &self,
+        text: &'static str,
+        selected: bool,
+        message: RammapMessage,
+        send: S,
+    ) -> View {
+        let mut btn = Button::new()
+            .on_click(move || send(message.clone()))
+            .content(TextBlock::new().text(text));
+        if selected {
+            btn = btn.background(Brush::Solid(Color::argb(255, 0, 120, 215)));
+        }
+        btn.into()
+    }
+
     fn message_button<S: Fn(RammapMessage) + Clone + 'static>(
         &self,
         text: impl Into<String>,
@@ -171,31 +257,6 @@ impl RammapApp {
             .on_click(move || send(message.clone()))
             .content(TextBlock::new().text(text))
             .into()
-    }
-
-    fn tab_button<S: Fn(RammapMessage) + Clone + 'static>(
-        &self,
-        text: &'static str,
-        tab: MemoryTab,
-        send: S,
-    ) -> View {
-        self.message_button(text, RammapMessage::SetTab(tab), send)
-    }
-    fn mode_button<S: Fn(RammapMessage) + Clone + 'static>(
-        &self,
-        text: &'static str,
-        mode: ViewMode,
-        send: S,
-    ) -> View {
-        self.message_button(text, RammapMessage::SetViewMode(mode), send)
-    }
-    fn group_button<S: Fn(RammapMessage) + Clone + 'static>(
-        &self,
-        text: &'static str,
-        mode: GroupMode,
-        send: S,
-    ) -> View {
-        self.message_button(text, RammapMessage::SetGroupMode(mode), send)
     }
 
     fn search_panel<S: Fn(RammapMessage) + Clone + 'static>(&self, send: S) -> View {
