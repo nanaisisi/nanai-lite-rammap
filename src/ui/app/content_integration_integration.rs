@@ -72,7 +72,22 @@ where
             .font_size(14.0)
             .into();
     };
-    build_gpu_column(app, sender, &filtered, idx, adapter, SPLIT_CANVAS_WIDTH)
+    let max_total_bytes = app
+        .gpu_adapters
+        .iter()
+        .map(|g| g.dedicated_vram_bytes + g.shared_ram_bytes)
+        .max()
+        .unwrap_or(1)
+        .max(1);
+    build_gpu_column(
+        app,
+        sender,
+        &filtered,
+        idx,
+        adapter,
+        SPLIT_CANVAS_WIDTH,
+        max_total_bytes,
+    )
 }
 
 fn build_split<S>(app: &RammapApp, sender: S, filtered: Vec<ProcessMemoryEntry>) -> View
@@ -96,6 +111,14 @@ where
 
     let mut gpu_columns: Vec<View> = Vec::with_capacity(adapter_count);
 
+    let max_total_bytes = app
+        .gpu_adapters
+        .iter()
+        .map(|g| g.dedicated_vram_bytes + g.shared_ram_bytes)
+        .max()
+        .unwrap_or(1)
+        .max(1);
+
     for (idx, adapter) in app.gpu_adapters.iter().enumerate() {
         gpu_columns.push(build_gpu_column(
             app,
@@ -104,6 +127,7 @@ where
             idx,
             adapter,
             panel_width,
+            max_total_bytes,
         ));
     }
 
@@ -137,6 +161,7 @@ fn build_gpu_column<S>(
     idx: usize,
     adapter: &crate::gpu::GpuAdapterInfo,
     panel_width: f64,
+    max_total_bytes: u64,
 ) -> View
 where
     S: Fn(RammapMessage) + Clone + 'static,
@@ -157,6 +182,11 @@ where
         })
         .collect();
 
+    let ded_used: u64 = adapter_processes.iter().map(|p| p.gpu_dedicated_bytes).sum();
+    let ded_free = adapter.dedicated_vram_bytes.saturating_sub(ded_used);
+    let shd_used: u64 = adapter_processes.iter().map(|p| p.gpu_shared_bytes).sum();
+    let shd_free = adapter.shared_ram_bytes.saturating_sub(shd_used);
+
     let dedicated_cap = if app.show_free_space && app.search_query.is_empty() {
         Some(adapter.dedicated_vram_bytes)
     } else {
@@ -168,15 +198,35 @@ where
         None
     };
 
-    let (dedicated_height, shared_height) = if app.proportional_gpu {
-        let total_h = SPLIT_CANVAS_HEIGHT * 2.0;
+    let (dedicated_width, dedicated_height, shared_width, shared_height) = if app.proportional_gpu
+    {
         let ded = adapter.dedicated_vram_bytes as f64;
         let shd = adapter.shared_ram_bytes as f64;
-        let sum = (ded + shd).max(1.0);
-        let d_h = (total_h * (ded / sum)).clamp(40.0, total_h - 40.0);
-        (d_h, total_h - d_h)
+        let gpu_sum = (ded + shd).max(1.0);
+        let scale = (gpu_sum / (max_total_bytes as f64)).clamp(0.05, 1.0);
+        let total_h = (SPLIT_CANVAS_HEIGHT * 2.0 * scale).max(16.0);
+        let ideal_d_h = total_h * (ded / gpu_sum);
+        let ideal_s_h = total_h * (shd / gpu_sum);
+        let d_h = ideal_d_h.clamp(8.0, total_h - 8.0);
+        let s_h = (total_h - d_h).max(8.0);
+        let d_w = if ideal_d_h < d_h {
+            (panel_width * (ideal_d_h / d_h)).max(8.0)
+        } else {
+            panel_width
+        };
+        let s_w = if ideal_s_h < s_h {
+            (panel_width * (ideal_s_h / s_h)).max(8.0)
+        } else {
+            panel_width
+        };
+        (d_w, d_h, s_w, s_h)
     } else {
-        (SPLIT_CANVAS_HEIGHT, SPLIT_CANVAS_HEIGHT)
+        (
+            panel_width,
+            SPLIT_CANVAS_HEIGHT,
+            panel_width,
+            SPLIT_CANVAS_HEIGHT,
+        )
     };
 
     let dedicated_view = match app.view_mode {
@@ -186,7 +236,7 @@ where
                 sender.clone(),
                 adapter_processes.clone(),
                 MemoryMetric::GpuDedicated,
-                panel_width,
+                dedicated_width,
                 dedicated_height,
                 dedicated_cap,
             ),
@@ -195,7 +245,7 @@ where
                 sender.clone(),
                 adapter_processes.clone(),
                 MemoryMetric::GpuDedicated,
-                panel_width,
+                dedicated_width,
                 dedicated_height,
                 dedicated_cap,
             ),
@@ -223,7 +273,7 @@ where
                 sender.clone(),
                 adapter_processes.clone(),
                 MemoryMetric::GpuShared,
-                panel_width,
+                shared_width,
                 shared_height,
                 shared_cap,
             ),
@@ -232,7 +282,7 @@ where
                 sender.clone(),
                 adapter_processes.clone(),
                 MemoryMetric::GpuShared,
-                panel_width,
+                shared_width,
                 shared_height,
                 shared_cap,
             ),
@@ -261,9 +311,21 @@ where
                 .text(format!("🎮 GPU {} [{}]: {}", idx, kind, adapter.name))
                 .font_size(14.0)
                 .font_weight(FontWeight::BOLD),
-            TextBlock::new().text("Dedicated VRAM").font_size(12.0),
+            TextBlock::new()
+                .text(format!(
+                    "Dedicated VRAM (Total: {} | Free: {})",
+                    crate::memory::format_bytes(adapter.dedicated_vram_bytes),
+                    crate::memory::format_bytes(ded_free)
+                ))
+                .font_size(12.0),
             dedicated_view,
-            TextBlock::new().text("Shared GPU Memory").font_size(12.0),
+            TextBlock::new()
+                .text(format!(
+                    "Shared GPU Memory (Total: {} | Free: {})",
+                    crate::memory::format_bytes(adapter.shared_ram_bytes),
+                    crate::memory::format_bytes(shd_free)
+                ))
+                .font_size(12.0),
             shared_view,
         ))
         .into()

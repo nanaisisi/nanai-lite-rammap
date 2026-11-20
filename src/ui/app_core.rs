@@ -59,7 +59,7 @@ impl RammapApp {
             metric: MemoryMetric::WorkingSet,
             use_requested: false,
             show_free_space: true,
-            proportional_gpu: false,
+            proportional_gpu: true,
             selected_process: None,
             selected_group_title: None,
         }
