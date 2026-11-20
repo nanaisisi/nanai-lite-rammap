@@ -146,6 +146,12 @@ impl RammapApp {
                 send.clone(),
             ),
             self.message_button(self.metric_label(), RammapMessage::ToggleMetric, send.clone()),
+            self.selectable_button(
+                "🧱 Free",
+                self.show_free_space,
+                RammapMessage::ToggleFreeSpace,
+                send.clone(),
+            ),
         ];
         if self.tab == MemoryTab::GpuVram && self.gpu_adapters.len() > 1 {
             view_buttons.push(self.message_button(

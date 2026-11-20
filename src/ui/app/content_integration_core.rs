@@ -25,6 +25,7 @@ pub(super) fn individual_treemap<S: Fn(RammapMessage) + Clone + 'static>(
     app: &RammapApp,
     sender: S,
     processes: Vec<ProcessMemoryEntry>,
+    total_capacity_bytes: Option<u64>,
 ) -> View {
     individual_treemap_with_metric(
         app,
@@ -33,6 +34,7 @@ pub(super) fn individual_treemap<S: Fn(RammapMessage) + Clone + 'static>(
         app.metric,
         CANVAS_WIDTH,
         CANVAS_HEIGHT,
+        total_capacity_bytes,
     )
 }
 
@@ -43,18 +45,56 @@ pub(super) fn individual_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'sta
     metric: MemoryMetric,
     canvas_width: f64,
     canvas_height: f64,
+    total_capacity_bytes: Option<u64>,
 ) -> View {
-    let items = processes
+    let used_bytes: u64 = processes.iter().map(|p| metric_bytes(p, metric)).sum();
+    let mut items = processes
         .into_iter()
         .map(|p| TreemapItem {
             value: metric_value(&p, metric),
-            data: p,
+            data: Some(p),
         })
         .collect::<Vec<_>>();
+    let free_bytes = total_capacity_bytes
+        .map(|cap| cap.saturating_sub(used_bytes))
+        .unwrap_or(0);
+    if free_bytes > 0 {
+        items.push(TreemapItem {
+            value: free_bytes as f64,
+            data: None,
+        });
+    }
     let mut elements = Vec::new();
 
     for node in layout_treemap(&items, bounds(canvas_width, canvas_height)) {
-        let p = node.data;
+        let Some(p) = node.data else {
+            let label = if node.rect.width > 55.0 && node.rect.height > 26.0 {
+                format!("Free\n{}", format_bytes(free_bytes))
+            } else {
+                String::new()
+            };
+            let click_sender = sender.clone();
+            let block = Border::new()
+                .width(node.rect.width.max(2.0))
+                .height(node.rect.height.max(2.0))
+                .background(Brush::Solid(Color::argb(255, 45, 45, 50)))
+                .border_brush(Brush::Solid(Color::argb(200, 30, 30, 34)))
+                .border_thickness(Thickness::uniform(1.0))
+                .corner_radius(CornerRadius::uniform(3.0))
+                .canvas_left(node.rect.x)
+                .canvas_top(node.rect.y)
+                .on_pointer_pressed(move |_| {
+                    click_sender(RammapMessage::SelectProcess(None, None));
+                })
+                .content(
+                    TextBlock::new()
+                        .text(label)
+                        .font_size(11.0)
+                        .margin(Thickness::xy(3.0, 2.0)),
+                );
+            elements.push(block.into());
+            continue;
+        };
         let pid = p.pid;
         let label_value = format_bytes(metric_bytes(&p, metric));
         let category = classify_process(&p.name);
@@ -118,6 +158,7 @@ pub(super) fn grouped_treemap<S: Fn(RammapMessage) + Clone + 'static>(
     app: &RammapApp,
     sender: S,
     processes: Vec<ProcessMemoryEntry>,
+    total_capacity_bytes: Option<u64>,
 ) -> View {
     grouped_treemap_with_metric(
         app,
@@ -126,6 +167,7 @@ pub(super) fn grouped_treemap<S: Fn(RammapMessage) + Clone + 'static>(
         app.metric,
         CANVAS_WIDTH,
         CANVAS_HEIGHT,
+        total_capacity_bytes,
     )
 }
 
@@ -136,26 +178,64 @@ pub(super) fn grouped_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'static
     metric: MemoryMetric,
     canvas_width: f64,
     canvas_height: f64,
+    total_capacity_bytes: Option<u64>,
 ) -> View {
     let groups = if app.group_mode == GroupMode::ByName {
         group_by_name(&processes)
     } else {
         group_by_category(&processes)
     };
-    let items = groups
+    let used_bytes: u64 = groups.iter().map(|g| group_metric_bytes(g, metric)).sum();
+    let mut items = groups
         .into_iter()
         .map(|g| TreemapItem {
             value: group_metric_value(&g, metric),
-            data: g,
+            data: Some(g),
         })
         .collect::<Vec<_>>();
+    let free_bytes = total_capacity_bytes
+        .map(|cap| cap.saturating_sub(used_bytes))
+        .unwrap_or(0);
+    if free_bytes > 0 {
+        items.push(TreemapItem {
+            value: free_bytes as f64,
+            data: None,
+        });
+    }
     let mut elements = Vec::new();
 
     for (index, node) in layout_treemap(&items, bounds(canvas_width, canvas_height))
         .into_iter()
         .enumerate()
     {
-        let group = node.data;
+        let Some(group) = node.data else {
+            let label = if node.rect.width > 60.0 && node.rect.height > 28.0 {
+                format!("Free\n{}", format_bytes(free_bytes))
+            } else {
+                String::new()
+            };
+            let click_sender = sender.clone();
+            let block = Border::new()
+                .width(node.rect.width.max(2.0))
+                .height(node.rect.height.max(2.0))
+                .background(Brush::Solid(Color::argb(255, 45, 45, 50)))
+                .border_brush(Brush::Solid(Color::argb(200, 30, 30, 34)))
+                .border_thickness(Thickness::uniform(1.0))
+                .corner_radius(CornerRadius::uniform(3.0))
+                .canvas_left(node.rect.x)
+                .canvas_top(node.rect.y)
+                .on_pointer_pressed(move |_| {
+                    click_sender(RammapMessage::SelectProcess(None, None));
+                })
+                .content(
+                    TextBlock::new()
+                        .text(label)
+                        .font_size(11.5)
+                        .margin(Thickness::xy(4.0, 3.0)),
+                );
+            elements.push(block.into());
+            continue;
+        };
         let selected = app.selected_group_title.as_ref() == Some(&group.title);
         let background = if selected {
             Color::argb(255, 240, 160, 40)

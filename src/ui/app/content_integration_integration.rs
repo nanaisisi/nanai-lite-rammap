@@ -53,10 +53,31 @@ where
     } else {
         filtered
     };
+    let total_capacity_bytes = if !app.show_free_space || !app.search_query.is_empty() {
+        None
+    } else {
+        match app.tab {
+            MemoryTab::SystemRam => Some(if app.use_requested {
+                app.summary.commit_limit_bytes
+            } else {
+                app.summary.total_phys_bytes
+            }),
+            MemoryTab::GpuVram => app
+                .gpu_adapters
+                .get(app.selected_gpu_index)
+                .map(|g| g.dedicated_vram_bytes),
+            MemoryTab::Split => None,
+        }
+    };
+
     match app.view_mode {
         ViewMode::Treemap => match app.group_mode {
-            GroupMode::Individual => individual_treemap(app, sender, filtered),
-            GroupMode::ByName | GroupMode::ByCategory => grouped_treemap(app, sender, filtered),
+            GroupMode::Individual => {
+                individual_treemap(app, sender, filtered, total_capacity_bytes)
+            }
+            GroupMode::ByName | GroupMode::ByCategory => {
+                grouped_treemap(app, sender, filtered, total_capacity_bytes)
+            }
         },
         ViewMode::List => match app.group_mode {
             GroupMode::Individual => individual_list(app, sender, filtered),
@@ -103,6 +124,17 @@ where
             })
             .collect();
 
+        let dedicated_cap = if app.show_free_space && app.search_query.is_empty() {
+            Some(adapter.dedicated_vram_bytes)
+        } else {
+            None
+        };
+        let shared_cap = if app.show_free_space && app.search_query.is_empty() {
+            Some(adapter.shared_ram_bytes)
+        } else {
+            None
+        };
+
         let dedicated_view = match app.view_mode {
             ViewMode::Treemap => match app.group_mode {
                 GroupMode::Individual => individual_treemap_with_metric(
@@ -112,6 +144,7 @@ where
                     MemoryMetric::GpuDedicated,
                     panel_width,
                     SPLIT_CANVAS_HEIGHT,
+                    dedicated_cap,
                 ),
                 GroupMode::ByName | GroupMode::ByCategory => grouped_treemap_with_metric(
                     app,
@@ -120,6 +153,7 @@ where
                     MemoryMetric::GpuDedicated,
                     panel_width,
                     SPLIT_CANVAS_HEIGHT,
+                    dedicated_cap,
                 ),
             },
             ViewMode::List => match app.group_mode {
@@ -147,6 +181,7 @@ where
                     MemoryMetric::GpuShared,
                     panel_width,
                     SPLIT_CANVAS_HEIGHT,
+                    shared_cap,
                 ),
                 GroupMode::ByName | GroupMode::ByCategory => grouped_treemap_with_metric(
                     app,
@@ -155,6 +190,7 @@ where
                     MemoryMetric::GpuShared,
                     panel_width,
                     SPLIT_CANVAS_HEIGHT,
+                    shared_cap,
                 ),
             },
             ViewMode::List => match app.group_mode {

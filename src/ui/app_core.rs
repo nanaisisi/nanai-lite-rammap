@@ -18,6 +18,7 @@ pub struct RammapApp {
     pub(super) selected_gpu_index: usize,
     pub(super) metric: MemoryMetric,
     pub(super) use_requested: bool,
+    pub(super) show_free_space: bool,
     pub(super) selected_process: Option<ProcessMemoryEntry>,
     pub(super) selected_group_title: Option<String>,
 }
@@ -56,6 +57,7 @@ impl RammapApp {
             selected_gpu_index: 0,
             metric: MemoryMetric::WorkingSet,
             use_requested: false,
+            show_free_space: true,
             selected_process: None,
             selected_group_title: None,
         }
@@ -94,6 +96,9 @@ impl RammapApp {
                     SplitLayoutMode::Fit => SplitLayoutMode::Scroll,
                     SplitLayoutMode::Scroll => SplitLayoutMode::Fit,
                 };
+            }
+            RammapMessage::ToggleFreeSpace => {
+                self.show_free_space = !self.show_free_space;
             }
             RammapMessage::CycleGpuAdapter => {
                 if !self.gpu_adapters.is_empty() {
