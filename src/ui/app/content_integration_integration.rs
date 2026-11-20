@@ -1,4 +1,6 @@
-use super::content_integration::{grouped_list, individual_list};
+use super::content_integration::{
+    grouped_list, grouped_list_with_metric, individual_list, individual_list_with_metric,
+};
 use super::content_integration_core::{
     grouped_treemap, grouped_treemap_with_metric, individual_treemap,
     individual_treemap_with_metric,
@@ -67,10 +69,18 @@ where
             ),
         },
         ViewMode::List => match app.group_mode {
-            GroupMode::Individual => individual_list(app, sender.clone(), filtered.clone()),
-            GroupMode::ByName | GroupMode::ByCategory => {
-                grouped_list(app, sender.clone(), filtered.clone())
-            }
+            GroupMode::Individual => individual_list_with_metric(
+                app,
+                sender.clone(),
+                filtered.clone(),
+                ram_metric,
+            ),
+            GroupMode::ByName | GroupMode::ByCategory => grouped_list_with_metric(
+                app,
+                sender.clone(),
+                filtered.clone(),
+                ram_metric,
+            ),
         },
     };
 
@@ -92,8 +102,12 @@ where
             ),
         },
         ViewMode::List => match app.group_mode {
-            GroupMode::Individual => individual_list(app, sender, filtered),
-            GroupMode::ByName | GroupMode::ByCategory => grouped_list(app, sender, filtered),
+            GroupMode::Individual => {
+                individual_list_with_metric(app, sender, filtered, gpu_metric)
+            }
+            GroupMode::ByName | GroupMode::ByCategory => {
+                grouped_list_with_metric(app, sender, filtered, gpu_metric)
+            }
         },
     };
 
