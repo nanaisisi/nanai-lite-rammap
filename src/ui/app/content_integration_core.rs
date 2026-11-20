@@ -35,6 +35,7 @@ enum TreemapEntry<T> {
 fn push_system_and_free<T>(
     items: &mut Vec<TreemapItem<TreemapEntry<T>>>,
     app: &RammapApp,
+    metric: MemoryMetric,
     used_bytes: u64,
     total_capacity_bytes: Option<u64>,
 ) {
@@ -83,7 +84,9 @@ fn push_system_and_free<T>(
                 },
             });
         }
-    } else if app.tab == MemoryTab::VirtualMemory && app.search_query.is_empty() {
+    } else if (app.tab == MemoryTab::VirtualMemory || metric == MemoryMetric::PagefileUsage)
+        && app.search_query.is_empty()
+    {
         items.clear();
         let pf_used = app.summary.pagefile_in_use_bytes;
         if pf_used > 0 {
@@ -153,7 +156,7 @@ pub(super) fn individual_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'sta
             data: TreemapEntry::Item(p),
         })
         .collect::<Vec<_>>();
-    push_system_and_free(&mut items, app, used_bytes, total_capacity_bytes);
+    push_system_and_free(&mut items, app, metric, used_bytes, total_capacity_bytes);
     let mut elements = Vec::new();
 
     for node in layout_treemap(&items, bounds(canvas_width, canvas_height)) {
@@ -318,7 +321,7 @@ pub(super) fn grouped_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'static
             data: TreemapEntry::Item(g),
         })
         .collect::<Vec<_>>();
-    push_system_and_free(&mut items, app, used_bytes, total_capacity_bytes);
+    push_system_and_free(&mut items, app, metric, used_bytes, total_capacity_bytes);
     let mut elements = Vec::new();
 
     for (index, node) in layout_treemap(&items, bounds(canvas_width, canvas_height))
