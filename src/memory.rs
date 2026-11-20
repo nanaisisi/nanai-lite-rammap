@@ -94,7 +94,68 @@ pub fn collect_system_summary() -> SystemMemorySummary {
         }
     }
 
+    summary.compressed_bytes = collect_compressed_memory_bytes();
     summary
+}
+
+fn collect_compressed_memory_bytes() -> u64 {
+    use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
+    use windows::core::s;
+
+    type NtQuerySystemInformationFn =
+        unsafe extern "system" fn(u32, *mut u8, u32, *mut u32) -> i32;
+
+    unsafe {
+        let Ok(ntdll) = LoadLibraryA(s!("ntdll.dll")) else {
+            return 0;
+        };
+        let Some(proc_addr) = GetProcAddress(ntdll, s!("NtQuerySystemInformation")) else {
+            return 0;
+        };
+        let nt_query: NtQuerySystemInformationFn = std::mem::transmute(proc_addr);
+
+        let mut buf_size = 512 * 1024u32;
+        let mut buf = vec![0u8; buf_size as usize];
+        loop {
+            let mut needed = 0u32;
+            let status = nt_query(5, buf.as_mut_ptr(), buf_size, &mut needed);
+            if status == 0 {
+                break;
+            }
+            if status == -1073741820_i32 {
+                // STATUS_INFO_LENGTH_MISMATCH
+                buf_size = needed.max(buf_size * 2);
+                buf.resize(buf_size as usize, 0);
+            } else {
+                return 0;
+            }
+        }
+
+        let mut offset = 0usize;
+        loop {
+            if offset + 128 > buf.len() {
+                break;
+            }
+            let base = buf.as_ptr().add(offset);
+            let next_offset = *(base as *const u32) as usize;
+            // ImageName UNICODE_STRING at offset 56 (x64): Length(u16), MaxLength(u16), pad(4), Buffer(*const u16)
+            let name_len = *(base.add(56) as *const u16) as usize;
+            let name_ptr = *(base.add(64) as *const *const u16);
+            if !name_ptr.is_null() && name_len > 0 {
+                let slice = std::slice::from_raw_parts(name_ptr, name_len / 2);
+                let name = String::from_utf16_lossy(slice);
+                if name.eq_ignore_ascii_case("Memory Compression") {
+                    // WorkingSetSize (SIZE_T) is at offset 120 on x64
+                    return *(base.add(120) as *const usize) as u64;
+                }
+            }
+            if next_offset == 0 {
+                break;
+            }
+            offset += next_offset;
+        }
+    }
+    0
 }
 
 pub fn collect_process_memory() -> Vec<ProcessMemoryEntry> {
