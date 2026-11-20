@@ -1,5 +1,5 @@
 use crate::category::ProcessCategory;
-use windows_reactor::{Border, Brush, Color, ContentControl, CornerRadius, Thickness, View};
+use windows_reactor::{Border, Brush, Color, CornerRadius, Thickness, View};
 
 pub fn wrap_canvas(canvas: View) -> View {
     Border::new()
@@ -8,6 +8,7 @@ pub fn wrap_canvas(canvas: View) -> View {
         .border_thickness(Thickness::uniform(1.0))
         .corner_radius(CornerRadius::uniform(4.0))
         .content(canvas)
+        .into()
 }
 
 pub fn color_for_category(cat: ProcessCategory, seed: u32) -> Color {

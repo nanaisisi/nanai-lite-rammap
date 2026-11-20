@@ -41,6 +41,7 @@ fn process_header() -> View {
                     .font_weight(FontWeight::BOLD),
             )),
     )
+    .into()
 }
 
 fn group_header() -> View {
@@ -79,6 +80,7 @@ fn group_header() -> View {
                     .font_weight(FontWeight::BOLD),
             )),
     )
+    .into()
 }
 
 pub(super) fn individual_list<S: Fn(RammapMessage) + Clone + 'static>(
@@ -139,6 +141,7 @@ pub(super) fn individual_list<S: Fn(RammapMessage) + Clone + 'static>(
     StackPanel::new()
         .spacing(4.0)
         .children((process_header(), content))
+        .into()
 }
 
 pub(super) fn grouped_list<S: Fn(RammapMessage) + Clone + 'static>(
@@ -206,4 +209,5 @@ pub(super) fn grouped_list<S: Fn(RammapMessage) + Clone + 'static>(
     StackPanel::new()
         .spacing(4.0)
         .children((group_header(), content))
+        .into()
 }

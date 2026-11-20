@@ -2,8 +2,8 @@ use super::content_core::{
     group_info, group_metric_bytes, group_metric_value, metric_bytes, metric_value,
 };
 use crate::category::{classify_process, group_by_category, group_by_name};
-use crate::memory::{format_bytes, ProcessMemoryEntry};
-use crate::treemap::{layout_treemap, Rect, TreemapItem};
+use crate::memory::{ProcessMemoryEntry, format_bytes};
+use crate::treemap::{Rect, TreemapItem, layout_treemap};
 use crate::ui::app_core::RammapApp;
 use crate::ui::theme::{color_for_category, wrap_canvas};
 use crate::ui::types::{GroupMode, RammapMessage};
@@ -85,13 +85,14 @@ pub(super) fn individual_treemap<S: Fn(RammapMessage) + Clone + 'static>(
                     .font_size(if node.rect.height > 35.0 { 11.0 } else { 9.5 })
                     .margin(Thickness::xy(3.0, 2.0)),
             );
-        elements.push(KeyedView::new(pid, block));
+        elements.push(block.into());
     }
     wrap_canvas(
         Canvas::new()
             .width(CANVAS_WIDTH)
             .height(CANVAS_HEIGHT)
-            .keyed_children(elements),
+            .children(elements)
+            .into(),
     )
 }
 
@@ -116,7 +117,6 @@ pub(super) fn grouped_treemap<S: Fn(RammapMessage) + Clone + 'static>(
 
     for (index, node) in layout_treemap(&items, bounds()).into_iter().enumerate() {
         let group = node.data;
-        let key = group.key.clone();
         let selected = app.selected_group_title.as_ref() == Some(&group.title);
         let background = if selected {
             Color::argb(255, 240, 160, 40)
@@ -164,12 +164,13 @@ pub(super) fn grouped_treemap<S: Fn(RammapMessage) + Clone + 'static>(
                     .font_size(if node.rect.height > 38.0 { 11.5 } else { 9.5 })
                     .margin(Thickness::xy(4.0, 3.0)),
             );
-        elements.push(KeyedView::new(key, block));
+        elements.push(block.into());
     }
     wrap_canvas(
         Canvas::new()
             .width(CANVAS_WIDTH)
             .height(CANVAS_HEIGHT)
-            .keyed_children(elements),
+            .children(elements)
+            .into(),
     )
 }
