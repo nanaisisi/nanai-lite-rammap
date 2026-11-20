@@ -123,8 +123,7 @@ impl RammapApp {
         let gpu_summary = format!("Processes: {} | {}", self.summary.process_count, gpu);
         match self.tab {
             MemoryTab::SystemRam => ram_summary,
-            MemoryTab::GpuVram => gpu_summary,
-            MemoryTab::Split => format!("{}\n{}", ram_summary, gpu_summary),
+            MemoryTab::GpuVram | MemoryTab::Split => gpu_summary,
         }
     }
 

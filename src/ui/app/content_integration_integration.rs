@@ -42,29 +42,23 @@ fn build_split<S>(app: &RammapApp, sender: S, filtered: Vec<ProcessMemoryEntry>)
 where
     S: Fn(RammapMessage) + Clone + 'static,
 {
-    let ram_metric = match app.metric {
-        MemoryMetric::PrivateWs => MemoryMetric::PrivateWs,
-        _ => MemoryMetric::WorkingSet,
-    };
-    let gpu_metric = match app.metric {
-        MemoryMetric::GpuShared => MemoryMetric::GpuShared,
-        _ => MemoryMetric::GpuDedicated,
-    };
+    let dedicated_metric = MemoryMetric::GpuDedicated;
+    let shared_metric = MemoryMetric::GpuShared;
 
-    let ram_view = match app.view_mode {
+    let dedicated_view = match app.view_mode {
         ViewMode::Treemap => match app.group_mode {
             GroupMode::Individual => individual_treemap_with_metric(
                 app,
                 sender.clone(),
                 filtered.clone(),
-                ram_metric,
+                dedicated_metric,
                 SPLIT_CANVAS_WIDTH,
             ),
             GroupMode::ByName | GroupMode::ByCategory => grouped_treemap_with_metric(
                 app,
                 sender.clone(),
                 filtered.clone(),
-                ram_metric,
+                dedicated_metric,
                 SPLIT_CANVAS_WIDTH,
             ),
         },
@@ -73,62 +67,62 @@ where
                 app,
                 sender.clone(),
                 filtered.clone(),
-                ram_metric,
+                dedicated_metric,
             ),
             GroupMode::ByName | GroupMode::ByCategory => grouped_list_with_metric(
                 app,
                 sender.clone(),
                 filtered.clone(),
-                ram_metric,
+                dedicated_metric,
             ),
         },
     };
 
-    let gpu_view = match app.view_mode {
+    let shared_view = match app.view_mode {
         ViewMode::Treemap => match app.group_mode {
             GroupMode::Individual => individual_treemap_with_metric(
                 app,
                 sender,
                 filtered,
-                gpu_metric,
+                shared_metric,
                 SPLIT_CANVAS_WIDTH,
             ),
             GroupMode::ByName | GroupMode::ByCategory => grouped_treemap_with_metric(
                 app,
                 sender,
                 filtered,
-                gpu_metric,
+                shared_metric,
                 SPLIT_CANVAS_WIDTH,
             ),
         },
         ViewMode::List => match app.group_mode {
             GroupMode::Individual => {
-                individual_list_with_metric(app, sender, filtered, gpu_metric)
+                individual_list_with_metric(app, sender, filtered, shared_metric)
             }
             GroupMode::ByName | GroupMode::ByCategory => {
-                grouped_list_with_metric(app, sender, filtered, gpu_metric)
+                grouped_list_with_metric(app, sender, filtered, shared_metric)
             }
         },
     };
 
-    let ram_panel = StackPanel::new().spacing(4.0).children((
+    let dedicated_panel = StackPanel::new().spacing(4.0).children((
         TextBlock::new()
-            .text("💻 System RAM")
+            .text("🎮 GPU Dedicated VRAM")
             .font_size(14.0)
             .font_weight(FontWeight::BOLD),
-        ram_view,
+        dedicated_view,
     ));
-    let gpu_panel = StackPanel::new().spacing(4.0).children((
+    let shared_panel = StackPanel::new().spacing(4.0).children((
         TextBlock::new()
-            .text("🎮 GPU VRAM")
+            .text("🎮 GPU Shared Memory")
             .font_size(14.0)
             .font_weight(FontWeight::BOLD),
-        gpu_view,
+        shared_view,
     ));
 
     StackPanel::new()
         .orientation(Orientation::Horizontal)
         .spacing(12.0)
-        .children((ram_panel, gpu_panel))
+        .children((dedicated_panel, shared_panel))
         .into()
 }
