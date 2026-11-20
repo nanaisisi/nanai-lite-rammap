@@ -35,7 +35,6 @@ pub enum GroupMode {
 pub enum MemoryMetric {
     WorkingSet,
     PrivateWs,
-    PeakWorkingSet,
     PagefileUsage,
     GpuDedicated,
     GpuShared,
