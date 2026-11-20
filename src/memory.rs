@@ -26,6 +26,7 @@ pub struct SystemMemorySummary {
     pub paged_pool_bytes: u64,
     pub nonpaged_pool_bytes: u64,
     pub system_cache_bytes: u64,
+    pub modified_bytes: u64,
     pub compressed_bytes: u64,
     pub process_count: u32,
 }
@@ -97,11 +98,44 @@ pub fn collect_system_summary() -> SystemMemorySummary {
             let (pf_total, pf_in_use) = collect_pagefile_usage(page_size);
             summary.pagefile_total_bytes = pf_total;
             summary.pagefile_in_use_bytes = pf_in_use;
+            summary.modified_bytes = collect_modified_memory_bytes(page_size);
         }
     }
 
     summary.compressed_bytes = collect_compressed_memory_bytes();
     summary
+}
+
+fn collect_modified_memory_bytes(page_size: u64) -> u64 {
+    use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
+    use windows::core::s;
+
+    type NtQuerySystemInformationFn =
+        unsafe extern "system" fn(u32, *mut u8, u32, *mut u32) -> i32;
+
+    // SYSTEM_MEMORY_LIST_INFORMATION (SystemMemoryListInformation = 80)
+    // On x64: ZeroPageCount(8), FreePageCount(8), ModifiedPageCount(8) -> offset 16
+    unsafe {
+        let Ok(ntdll) = LoadLibraryA(s!("ntdll.dll")) else {
+            return 0;
+        };
+        let Some(proc_addr) = GetProcAddress(ntdll, s!("NtQuerySystemInformation")) else {
+            return 0;
+        };
+        let nt_query: NtQuerySystemInformationFn = std::mem::transmute(proc_addr);
+        let mut buf = [0u64; 32];
+        let mut needed = 0u32;
+        let status = nt_query(
+            80,
+            buf.as_mut_ptr() as *mut u8,
+            std::mem::size_of_val(&buf) as u32,
+            &mut needed,
+        );
+        if status == 0 {
+            return buf[2].saturating_mul(page_size);
+        }
+    }
+    0
 }
 
 fn collect_pagefile_usage(page_size: u64) -> (u64, u64) {

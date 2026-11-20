@@ -225,13 +225,20 @@ impl RammapApp {
                 .collect::<Vec<_>>()
                 .join(" | ")
         };
+        let comp_pct = if self.summary.total_phys_bytes > 0 {
+            (self.summary.compressed_bytes as f64 / self.summary.total_phys_bytes as f64) * 100.0
+        } else {
+            0.0
+        };
         let ram_summary = format!(
-            "Processes: {} | Physical RAM: {} (Used: {} / {}%) | Compressed: {} | Cache: {} | Paged: {} | NonPaged: {}",
+            "Processes: {} | Physical RAM: {} (Used: {} / {}%) | Compressed: {} ({:.1}%) | Modified: {} | Cache: {} | Paged: {} | NonPaged: {}",
             self.summary.process_count,
             format_bytes(self.summary.total_phys_bytes),
             format_bytes(self.summary.used_phys_bytes),
             self.summary.memory_load_pct,
             format_bytes(self.summary.compressed_bytes),
+            comp_pct,
+            format_bytes(self.summary.modified_bytes),
             format_bytes(self.summary.system_cache_bytes),
             format_bytes(self.summary.paged_pool_bytes),
             format_bytes(self.summary.nonpaged_pool_bytes)

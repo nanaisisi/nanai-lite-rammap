@@ -56,6 +56,16 @@ fn push_system_and_free<T>(
                 app.summary.compressed_bytes,
                 Color::argb(255, 70, 125, 140),
             ),
+            (
+                "System Cache",
+                app.summary.system_cache_bytes,
+                Color::argb(255, 85, 140, 100),
+            ),
+            (
+                "Modified",
+                app.summary.modified_bytes,
+                Color::argb(255, 160, 120, 60),
+            ),
         ];
         for (label, bytes, color) in sys_blocks {
             if bytes > 0 {
