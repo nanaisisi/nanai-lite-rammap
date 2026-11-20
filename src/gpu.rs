@@ -25,11 +25,21 @@ pub struct GpuAdapterInfo {
     pub shared_budget_bytes: u64,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AdapterGpuUsage {
+    pub dedicated_usage: u64,
+    pub dedicated_requested: u64,
+    pub shared_usage: u64,
+    pub shared_requested: u64,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ProcessGpuMemory {
     pub dedicated_bytes: u64,
+    pub dedicated_requested_bytes: u64,
     pub shared_bytes: u64,
-    pub per_adapter: Vec<(u64, u64)>,
+    pub shared_requested_bytes: u64,
+    pub per_adapter: Vec<AdapterGpuUsage>,
 }
 
 #[repr(C)]
@@ -182,12 +192,16 @@ pub fn collect_all_process_gpu_memory(
             };
 
             let mut total_dedicated = 0u64;
+            let mut total_dedicated_req = 0u64;
             let mut total_shared = 0u64;
+            let mut total_shared_req = 0u64;
             let mut per_adapter = Vec::with_capacity(adapters.len());
 
             for adapter in adapters {
                 let mut adapter_dedicated = 0u64;
+                let mut adapter_dedicated_req = 0u64;
                 let mut adapter_shared = 0u64;
+                let mut adapter_shared_req = 0u64;
                 // Query Local (Dedicated VRAM) - SegmentGroup 0
                 {
                     let mut query_data = D3DKMT_QUERYSTATISTICS {
@@ -204,6 +218,7 @@ pub fn collect_all_process_gpu_memory(
                         let info = *(query_data.query_result.as_ptr()
                             as *const D3DKMT_QUERYSTATISTICS_PROCESS_SEGMENT_GROUP_INFORMATION);
                         adapter_dedicated = info.usage;
+                        adapter_dedicated_req = info.requested;
                     }
                 }
 
@@ -223,27 +238,43 @@ pub fn collect_all_process_gpu_memory(
                         let info = *(query_data.query_result.as_ptr()
                             as *const D3DKMT_QUERYSTATISTICS_PROCESS_SEGMENT_GROUP_INFORMATION);
                         adapter_shared = info.usage;
+                        adapter_shared_req = info.requested;
                     }
                 }
                 // Integrated GPU (UMA) has no physical dedicated VRAM; treat all usage as shared memory
                 if !adapter.is_discrete {
                     adapter_shared = adapter_shared.saturating_add(adapter_dedicated);
+                    adapter_shared_req = adapter_shared_req.saturating_add(adapter_dedicated_req);
                     adapter_dedicated = 0;
+                    adapter_dedicated_req = 0;
                 }
 
                 total_dedicated = total_dedicated.saturating_add(adapter_dedicated);
+                total_dedicated_req = total_dedicated_req.saturating_add(adapter_dedicated_req);
                 total_shared = total_shared.saturating_add(adapter_shared);
-                per_adapter.push((adapter_dedicated, adapter_shared));
+                total_shared_req = total_shared_req.saturating_add(adapter_shared_req);
+                per_adapter.push(AdapterGpuUsage {
+                    dedicated_usage: adapter_dedicated,
+                    dedicated_requested: adapter_dedicated_req,
+                    shared_usage: adapter_shared,
+                    shared_requested: adapter_shared_req,
+                });
             }
 
             let _ = CloseHandle(handle);
 
-            if total_dedicated > 0 || total_shared > 0 {
+            if total_dedicated > 0
+                || total_shared > 0
+                || total_dedicated_req > 0
+                || total_shared_req > 0
+            {
                 map.insert(
                     pid,
                     ProcessGpuMemory {
                         dedicated_bytes: total_dedicated,
+                        dedicated_requested_bytes: total_dedicated_req,
                         shared_bytes: total_shared,
+                        shared_requested_bytes: total_shared_req,
                         per_adapter,
                     },
                 );

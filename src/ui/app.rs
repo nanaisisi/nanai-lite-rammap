@@ -136,11 +136,10 @@ impl RammapApp {
     }
 
     fn metric_label(&self) -> &'static str {
-        match self.metric {
-            MemoryMetric::WorkingSet => "Metric: Working Set",
-            MemoryMetric::PrivateWs => "Metric: Private (Commit)",
-            MemoryMetric::GpuDedicated => "Metric: Dedicated VRAM",
-            MemoryMetric::GpuShared => "Metric: Shared GPU Memory",
+        if self.use_requested {
+            "Metric: Private / Requested"
+        } else {
+            "Metric: Working Set / Usage"
         }
     }
 

@@ -13,6 +13,7 @@ pub struct RammapApp {
     pub(super) view_mode: ViewMode,
     pub(super) group_mode: GroupMode,
     pub(super) metric: MemoryMetric,
+    pub(super) use_requested: bool,
     pub(super) selected_process: Option<ProcessMemoryEntry>,
     pub(super) selected_group_title: Option<String>,
 }
@@ -25,7 +26,9 @@ fn fetch_all_processes(gpu_adapters: &[GpuAdapterInfo]) -> Vec<ProcessMemoryEntr
     for p in &mut processes {
         if let Some(gpu_info) = gpu_map.get(&p.pid) {
             p.gpu_dedicated_bytes = gpu_info.dedicated_bytes;
+            p.gpu_dedicated_requested_bytes = gpu_info.dedicated_requested_bytes;
             p.gpu_shared_bytes = gpu_info.shared_bytes;
+            p.gpu_shared_requested_bytes = gpu_info.shared_requested_bytes;
             p.gpu_per_adapter = gpu_info.per_adapter.clone();
         }
     }
@@ -46,6 +49,7 @@ impl RammapApp {
             view_mode: ViewMode::Treemap,
             group_mode: GroupMode::ByName,
             metric: MemoryMetric::WorkingSet,
+            use_requested: false,
             selected_process: None,
             selected_group_title: None,
         }
@@ -80,22 +84,14 @@ impl RammapApp {
             RammapMessage::SetViewMode(mode) => self.view_mode = mode,
             RammapMessage::SetGroupMode(mode) => self.group_mode = mode,
             RammapMessage::ToggleMetric => {
-                self.metric = match self.tab {
-                    MemoryTab::SystemRam => match self.metric {
-                        MemoryMetric::WorkingSet => MemoryMetric::PrivateWs,
-                        _ => MemoryMetric::WorkingSet,
-                    },
-                    MemoryTab::GpuVram => match self.metric {
-                        MemoryMetric::GpuDedicated => MemoryMetric::GpuShared,
-                        _ => MemoryMetric::GpuDedicated,
-                    },
-                    MemoryTab::Split => match self.metric {
-                        MemoryMetric::WorkingSet => MemoryMetric::PrivateWs,
-                        MemoryMetric::PrivateWs => MemoryMetric::GpuDedicated,
-                        MemoryMetric::GpuDedicated => MemoryMetric::GpuShared,
-                        MemoryMetric::GpuShared => MemoryMetric::WorkingSet,
-                    },
-                };
+                self.use_requested = !self.use_requested;
+                if self.tab == MemoryTab::SystemRam {
+                    self.metric = if self.use_requested {
+                        MemoryMetric::PrivateWs
+                    } else {
+                        MemoryMetric::WorkingSet
+                    };
+                }
             }
             RammapMessage::SelectProcess(process, group_title) => {
                 self.selected_process = process;

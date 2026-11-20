@@ -33,8 +33,10 @@ pub struct ProcessMemoryEntry {
     pub working_set_bytes: u64,
     pub private_bytes: u64,
     pub gpu_dedicated_bytes: u64,
+    pub gpu_dedicated_requested_bytes: u64,
     pub gpu_shared_bytes: u64,
-    pub gpu_per_adapter: Vec<(u64, u64)>,
+    pub gpu_shared_requested_bytes: u64,
+    pub gpu_per_adapter: Vec<crate::gpu::AdapterGpuUsage>,
 }
 
 pub fn format_bytes(bytes: u64) -> String {
@@ -142,7 +144,9 @@ pub fn collect_process_memory() -> Vec<ProcessMemoryEntry> {
                                     working_set_bytes: counters.WorkingSetSize as u64,
                                     private_bytes: counters.PrivateUsage as u64,
                                     gpu_dedicated_bytes: 0,
+                                    gpu_dedicated_requested_bytes: 0,
                                     gpu_shared_bytes: 0,
+                                    gpu_shared_requested_bytes: 0,
                                     gpu_per_adapter: Vec::new(),
                                 });
                             }
