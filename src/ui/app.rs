@@ -71,6 +71,7 @@ impl RammapApp {
             .children((
                 self.tab_button("💻 System RAM", MemoryTab::SystemRam, send.clone()),
                 self.tab_button("🎮 GPU VRAM", MemoryTab::GpuVram, send.clone()),
+                self.tab_button("🧩 Split", MemoryTab::Split, send.clone()),
                 self.message_button("🔄 Refresh", RammapMessage::Refresh, send.clone()),
                 self.mode_button("📊 2D Tree", ViewMode::Treemap, send.clone()),
                 self.mode_button("📋 List", ViewMode::List, send.clone()),
@@ -110,17 +111,20 @@ impl RammapApp {
                 .collect::<Vec<_>>()
                 .join(" | ")
         };
+        let ram_summary = format!(
+            "Processes: {} | Physical RAM: {} (Used: {} / {}%) | Commit: {} / {}",
+            self.summary.process_count,
+            format_bytes(self.summary.total_phys_bytes),
+            format_bytes(self.summary.used_phys_bytes),
+            self.summary.memory_load_pct,
+            format_bytes(self.summary.commit_total_bytes),
+            format_bytes(self.summary.commit_limit_bytes)
+        );
+        let gpu_summary = format!("Processes: {} | {}", self.summary.process_count, gpu);
         match self.tab {
-            MemoryTab::SystemRam => format!(
-                "Processes: {} | Physical RAM: {} (Used: {} / {}%) | Commit: {} / {}",
-                self.summary.process_count,
-                format_bytes(self.summary.total_phys_bytes),
-                format_bytes(self.summary.used_phys_bytes),
-                self.summary.memory_load_pct,
-                format_bytes(self.summary.commit_total_bytes),
-                format_bytes(self.summary.commit_limit_bytes)
-            ),
-            MemoryTab::GpuVram => format!("Processes: {} | {}", self.summary.process_count, gpu),
+            MemoryTab::SystemRam => ram_summary,
+            MemoryTab::GpuVram => gpu_summary,
+            MemoryTab::Split => format!("{}\n{}", ram_summary, gpu_summary),
         }
     }
 

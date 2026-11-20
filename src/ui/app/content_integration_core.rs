@@ -6,17 +6,17 @@ use crate::memory::{ProcessMemoryEntry, format_bytes};
 use crate::treemap::{Rect, TreemapItem, layout_treemap};
 use crate::ui::app_core::RammapApp;
 use crate::ui::theme::{color_for_category, wrap_canvas};
-use crate::ui::types::{GroupMode, RammapMessage};
+use crate::ui::types::{GroupMode, MemoryMetric, RammapMessage};
 use windows_reactor::*;
 
 const CANVAS_WIDTH: f64 = 1000.0;
 const CANVAS_HEIGHT: f64 = 540.0;
 
-fn bounds() -> Rect {
+fn bounds(width: f64) -> Rect {
     Rect {
         x: 0.0,
         y: 0.0,
-        width: CANVAS_WIDTH,
+        width,
         height: CANVAS_HEIGHT,
     }
 }
@@ -26,19 +26,29 @@ pub(super) fn individual_treemap<S: Fn(RammapMessage) + Clone + 'static>(
     sender: S,
     processes: Vec<ProcessMemoryEntry>,
 ) -> View {
+    individual_treemap_with_metric(app, sender, processes, app.metric, CANVAS_WIDTH)
+}
+
+pub(super) fn individual_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'static>(
+    app: &RammapApp,
+    sender: S,
+    processes: Vec<ProcessMemoryEntry>,
+    metric: MemoryMetric,
+    canvas_width: f64,
+) -> View {
     let items = processes
         .into_iter()
         .map(|p| TreemapItem {
-            value: metric_value(&p, app.metric),
+            value: metric_value(&p, metric),
             data: p,
         })
         .collect::<Vec<_>>();
     let mut elements = Vec::new();
 
-    for node in layout_treemap(&items, bounds()) {
+    for node in layout_treemap(&items, bounds(canvas_width)) {
         let p = node.data;
         let pid = p.pid;
-        let label_value = format_bytes(metric_bytes(&p, app.metric));
+        let label_value = format_bytes(metric_bytes(&p, metric));
         let category = classify_process(&p.name);
         let selected = app.selected_process.as_ref().is_some_and(|s| s.pid == pid);
         let background = if selected {
@@ -89,7 +99,7 @@ pub(super) fn individual_treemap<S: Fn(RammapMessage) + Clone + 'static>(
     }
     wrap_canvas(
         Canvas::new()
-            .width(CANVAS_WIDTH)
+            .width(canvas_width)
             .height(CANVAS_HEIGHT)
             .children(elements)
             .into(),
@@ -101,6 +111,16 @@ pub(super) fn grouped_treemap<S: Fn(RammapMessage) + Clone + 'static>(
     sender: S,
     processes: Vec<ProcessMemoryEntry>,
 ) -> View {
+    grouped_treemap_with_metric(app, sender, processes, app.metric, CANVAS_WIDTH)
+}
+
+pub(super) fn grouped_treemap_with_metric<S: Fn(RammapMessage) + Clone + 'static>(
+    app: &RammapApp,
+    sender: S,
+    processes: Vec<ProcessMemoryEntry>,
+    metric: MemoryMetric,
+    canvas_width: f64,
+) -> View {
     let groups = if app.group_mode == GroupMode::ByName {
         group_by_name(&processes)
     } else {
@@ -109,13 +129,13 @@ pub(super) fn grouped_treemap<S: Fn(RammapMessage) + Clone + 'static>(
     let items = groups
         .into_iter()
         .map(|g| TreemapItem {
-            value: group_metric_value(&g, app.metric),
+            value: group_metric_value(&g, metric),
             data: g,
         })
         .collect::<Vec<_>>();
     let mut elements = Vec::new();
 
-    for (index, node) in layout_treemap(&items, bounds()).into_iter().enumerate() {
+    for (index, node) in layout_treemap(&items, bounds(canvas_width)).into_iter().enumerate() {
         let group = node.data;
         let selected = app.selected_group_title.as_ref() == Some(&group.title);
         let background = if selected {
@@ -128,7 +148,7 @@ pub(super) fn grouped_treemap<S: Fn(RammapMessage) + Clone + 'static>(
         } else {
             Color::argb(200, 20, 20, 20)
         };
-        let value = format_bytes(group_metric_bytes(&group, app.metric));
+        let value = format_bytes(group_metric_bytes(&group, metric));
         let label = if node.rect.width > 60.0 && node.rect.height > 28.0 {
             if node.rect.height > 44.0 && node.rect.width > 80.0 {
                 format!("{}\n{}", group.title, value)
@@ -168,7 +188,7 @@ pub(super) fn grouped_treemap<S: Fn(RammapMessage) + Clone + 'static>(
     }
     wrap_canvas(
         Canvas::new()
-            .width(CANVAS_WIDTH)
+            .width(canvas_width)
             .height(CANVAS_HEIGHT)
             .children(elements)
             .into(),

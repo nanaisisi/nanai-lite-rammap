@@ -88,6 +88,12 @@ impl RammapApp {
                         MemoryMetric::GpuDedicated => MemoryMetric::GpuShared,
                         _ => MemoryMetric::GpuDedicated,
                     },
+                    MemoryTab::Split => match self.metric {
+                        MemoryMetric::WorkingSet => MemoryMetric::PrivateWs,
+                        MemoryMetric::PrivateWs => MemoryMetric::GpuDedicated,
+                        MemoryMetric::GpuDedicated => MemoryMetric::GpuShared,
+                        MemoryMetric::GpuShared => MemoryMetric::WorkingSet,
+                    },
                 };
             }
             RammapMessage::SelectProcess(process, group_title) => {

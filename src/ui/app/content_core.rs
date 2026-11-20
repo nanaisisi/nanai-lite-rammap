@@ -50,6 +50,15 @@ pub(super) fn group_info(tab: MemoryTab, group: &ProcessGroup<ProcessMemoryEntry
             format_bytes(group.total_gpu_shared),
             group.items.len()
         ),
+        MemoryTab::Split => format!(
+            "{} | Total WS: {} | Total Private: {} | VRAM: {} | Shared: {} | Count: {}",
+            group.title,
+            format_bytes(group.total_working_set),
+            format_bytes(group.total_private),
+            format_bytes(group.total_gpu_dedicated),
+            format_bytes(group.total_gpu_shared),
+            group.items.len()
+        ),
     }
 }
 
